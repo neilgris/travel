@@ -13,6 +13,9 @@ bp = Blueprint("settings", __name__, url_prefix="/settings")
 def people():
     if request.method == "POST":
         name = request.form["name"].strip()
+        if not name:
+            flash("名称不能为空")
+            return redirect(url_for("settings.people"))
         photo = save_upload(request.files.get("photo"),
                             current_app.config["UPLOAD_FOLDER"])
         db.session.add(Person(name=name, photo=photo))
@@ -27,6 +30,9 @@ def people():
 def cities():
     if request.method == "POST":
         name = request.form["name"].strip()
+        if not name:
+            flash("名称不能为空")
+            return redirect(url_for("settings.cities"))
         coords = geocode(name)
         lat, lon = coords if coords else (None, None)
         db.session.add(City(name=name, latitude=lat, longitude=lon,

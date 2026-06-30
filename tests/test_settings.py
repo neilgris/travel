@@ -18,3 +18,13 @@ def test_add_city_geocodes(client, app):
     with app.app_context():
         c = City.query.filter_by(name="札幌").one()
         assert c.latitude == 43.06 and c.longitude == 141.35
+
+
+def test_add_city_no_coords(client, app):
+    with patch("app.blueprints.settings.geocode", return_value=None):
+        resp = client.post("/settings/cities", data={"name": "未知城市"},
+                           follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        c = City.query.filter_by(name="未知城市").one()
+        assert c.latitude is None and c.longitude is None
