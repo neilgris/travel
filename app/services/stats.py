@@ -23,13 +23,14 @@ def trip_stats(trip):
     for day in sorted(trip.days, key=lambda d: d.date):
         day_total = Decimal("0.00")
         for e in day.entries:
+            # Accumulate per-entry rounded CNY so total_cny, by_category, by_day, by_currency stay mutually consistent.
             cny = to_cny(e.amount, e.currency_code, rate_map)
             total += cny
             day_total += cny
-            by_category[e.category] = by_category.get(e.category, Decimal("0.00")) + cny
+            by_category[e.category] += cny
             cur = by_currency.setdefault(
                 e.currency_code, {"code": e.currency_code,
-                                  "original": Decimal("0"), "cny": Decimal("0.00")})
+                                  "original": Decimal("0.00"), "cny": Decimal("0.00")})
             cur["original"] += Decimal(e.amount)
             cur["cny"] += cny
         by_day.append({"date": day.date, "total_cny": day_total})
