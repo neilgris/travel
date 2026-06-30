@@ -21,12 +21,12 @@
            placeholder="纬度" size="8">
     <input name="longitude" value="{{ c.longitude if c.longitude is not none else '' }}"
            placeholder="经度" size="8">
-    <label class="muted">重新定位 <input type="checkbox" name="regeocode" value="1"></label>
-    <button class="btn" type="submit">保存</button>
+    <label class="muted"><input type="checkbox" name="regeocode" value="1">重新定位</label>
+    <button class="btn btn-sm" type="submit">保存</button>
   </form>
   <form method="post" action="{{ url_for('settings.delete_city', cid=c.id) }}"
         onsubmit="return confirm('确定删除 {{ c.name }}？');">
-    <button class="btn btn-danger" type="submit">删除</button>
+    <button class="btn btn-danger btn-sm" type="submit">删除</button>
   </form>
 </div>
 {% endfor %}

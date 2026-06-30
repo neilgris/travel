@@ -18,11 +18,11 @@
     {% if p.photo %}<img class="thumb" src="{{ url_for('main.uploads', filename=p.photo.split('/')[-1]) }}">{% endif %}
     <input name="name" value="{{ p.name }}" required>
     <label class="muted">换照片 <input type="file" name="photo" accept="image/*"></label>
-    <button class="btn" type="submit">保存</button>
+    <button class="btn btn-sm" type="submit">保存</button>
   </form>
   <form method="post" action="{{ url_for('settings.delete_person', pid=p.id) }}"
         onsubmit="return confirm('确定删除 {{ p.name }}？');">
-    <button class="btn btn-danger" type="submit">删除</button>
+    <button class="btn btn-danger btn-sm" type="submit">删除</button>
   </form>
 </div>
 {% endfor %}
