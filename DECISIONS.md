@@ -72,3 +72,4 @@
 - **时间戳**：`created_at` 用 timezone-aware `datetime.now(timezone.utc)`（避免 utcnow 弃用警告）。
 - **Flash 消息**：需要 `SECRET_KEY`（已加入 config，env 可覆盖）。
 - **币种下拉**：记录花费时只能选「CNY + 本旅程已声明外币」，to_cny 对未配置币种有防御性 0.00 兜底（UI 约束，正常不可达）。
+- **编辑旅程路由**（最终审查）：`/<trip_id>/edit` 路由复用 `_apply_form` 与 `form.html`（已支持编辑模式）；`add_entry` 增加 `day.trip_id != trip_id` 完整性校验，不匹配时返回 404。

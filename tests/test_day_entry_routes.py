@@ -1,5 +1,6 @@
 import datetime as dt
 from decimal import Decimal
+from app.extensions import db
 from app.models.city import City
 from app.models.trip import Trip, TripCurrency
 from app.models.day import Day, Entry
@@ -14,6 +15,25 @@ def make_trip(app):
         db.session.add_all([c, t])
         db.session.commit()
         return t.id, c.id
+
+
+def test_add_entry_mismatched_trip_day_returns_404(client, app):
+    # Create two separate trips; a day under trip B; POST entry to trip A's URL
+    with app.app_context():
+        c = City(name="上海")
+        ta = Trip(title="旅程A", start_date=dt.date(2026, 2, 1), end_date=dt.date(2026, 2, 3))
+        tb = Trip(title="旅程B", start_date=dt.date(2026, 3, 1), end_date=dt.date(2026, 3, 3))
+        db.session.add_all([c, ta, tb])
+        db.session.commit()
+        day_b = Day(trip_id=tb.id, date=dt.date(2026, 3, 1))
+        db.session.add(day_b)
+        db.session.commit()
+        ta_id = ta.id
+        day_b_id = day_b.id
+    resp = client.post(f"/trips/{ta_id}/days/{day_b_id}/entries", data={
+        "category": "吃饭", "title": "测试", "amount": "10", "currency_code": "CNY",
+    })
+    assert resp.status_code == 404
 
 
 def test_add_day_and_entry(client, app):

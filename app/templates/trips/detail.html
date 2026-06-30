@@ -6,7 +6,8 @@
    出行：{{ trip.transport_modes | join(' / ') or '—' }} ·
    总花费 ￥{{ stats.total_cny }}</p>
 <p>同行：{{ trip.people | map(attribute='name') | join('、') or '—' }}
-   <a href="{{ url_for('trips.stats_page', trip_id=trip.id) }}">查看统计 →</a></p>
+   <a href="{{ url_for('trips.stats_page', trip_id=trip.id) }}">查看统计 →</a>
+   <a href="{{ url_for('trips.edit', trip_id=trip.id) }}">编辑旅程</a></p>
 {% if trip.notes %}<p>{{ trip.notes }}</p>{% endif %}
 
 <h2>每天记录</h2>

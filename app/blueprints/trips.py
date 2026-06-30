@@ -2,7 +2,7 @@ import datetime as dt
 import json
 from decimal import Decimal
 from flask import (Blueprint, render_template, request, redirect,
-                   url_for, flash, current_app)
+                   url_for, flash, current_app, abort)
 from app.extensions import db
 from app.models.trip import Trip, Leg, TripCurrency
 from app.models.city import City
@@ -71,6 +71,20 @@ def create():
                            modes=TRANSPORT_MODES)
 
 
+@bp.route("/<int:trip_id>/edit", methods=["GET", "POST"])
+def edit(trip_id):
+    trip = db.get_or_404(Trip, trip_id)
+    if request.method == "POST":
+        _apply_form(trip)
+        db.session.commit()
+        flash("旅程已更新")
+        return redirect(url_for("trips.detail", trip_id=trip.id))
+    return render_template("trips/form.html", trip=trip,
+                           cities=City.query.order_by(City.name).all(),
+                           people=Person.query.order_by(Person.name).all(),
+                           modes=TRANSPORT_MODES)
+
+
 @bp.route("/<int:trip_id>")
 def detail(trip_id):
     trip = db.get_or_404(Trip, trip_id)
@@ -94,6 +108,8 @@ def add_day(trip_id):
 @bp.route("/<int:trip_id>/days/<int:day_id>/entries", methods=["POST"])
 def add_entry(trip_id, day_id):
     day = db.get_or_404(Day, day_id)
+    if day.trip_id != trip_id:
+        abort(404)
     entry = Entry(day_id=day.id,
                   category=request.form["category"],
                   title=request.form["title"].strip(),
@@ -114,6 +130,7 @@ def add_entry(trip_id, day_id):
 def stats_page(trip_id):
     trip = db.get_or_404(Trip, trip_id)
     s = trip_stats(trip)
+    # Chart data below is emitted to an inline <script> via |safe in stats.html — keep it to fixed CATEGORIES names, ISO date strings, and numbers only; never add user free-text here without escaping.
     cat_labels = [k for k, v in s["by_category"].items() if v > 0]
     cat_values = [float(s["by_category"][k]) for k in cat_labels]
     day_labels = [d["date"].isoformat() for d in s["by_day"]]

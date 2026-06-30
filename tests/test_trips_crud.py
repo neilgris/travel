@@ -1,6 +1,7 @@
 import datetime as dt
 from app.models.city import City
 from app.models.trip import Trip
+from app.extensions import db
 
 
 def seed_cities(app):
@@ -29,6 +30,21 @@ def test_create_trip(client, app):
         assert len(t.legs) == 1
         assert t.transport_modes == ["飞机"]
         assert t.currencies[0].currency_code == "HKD"
+
+
+def test_edit_trip(client, app):
+    seed_cities(app)
+    client.post("/trips/create", data={
+        "title": "原标题", "start_date": "2026-03-01", "end_date": "2026-03-02",
+    }, follow_redirects=True)
+    with app.app_context():
+        tid = Trip.query.filter_by(title="原标题").one().id
+    resp = client.post(f"/trips/{tid}/edit", data={
+        "title": "新标题", "start_date": "2026-03-01", "end_date": "2026-03-02",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        assert db.session.get(Trip, tid).title == "新标题"
 
 
 def test_list_shows_trip(client, app):
