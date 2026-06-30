@@ -123,7 +123,9 @@ select {
 
 /* 行程段：出发 / 到达 / 方式 一行排列 */
 .leg-row { display: flex; gap: 0.6rem; margin-bottom: 0.6rem; }
-.leg-row select { flex: 1; min-width: 0; }
+.leg-row input[name="leg_from"],
+.leg-row input[name="leg_to"] { flex: 1 1 0; min-width: 0; }
+.leg-row select[name="leg_mode"] { flex: 0 0 7rem; min-width: 0; }
 
 /* 币种 / 汇率 一行排列，各占一半 */
 #currencies > div { display: flex; gap: 0.6rem; margin-bottom: 0.6rem; }

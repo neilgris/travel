@@ -28,7 +28,7 @@
              value="{{ leg.to_city.name if leg and leg.to_city else '' }}">
       <select name="leg_mode">
         <option value="">方式</option>
-        {% for m in modes %}<option {{ 'selected' if leg and leg.transport_mode==m }}>{{ m }}</option>{% endfor %}
+        {% for m in modes %}<option value="{{ m }}" {{ 'selected' if leg and leg.transport_mode==m }}>{{ m | transport_label }}</option>{% endfor %}
       </select>
     </div>
     {% endfor %}
