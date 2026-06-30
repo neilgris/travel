@@ -1221,7 +1221,7 @@ def create():
 
 @bp.route("/<int:trip_id>")
 def detail(trip_id):
-    trip = Trip.query.get_or_404(trip_id)
+    trip = db.get_or_404(Trip, trip_id)
     return render_template("trips/detail.html", trip=trip,
                            stats=trip_stats(trip))
 ```
@@ -1402,7 +1402,7 @@ from app.services.uploads import save_upload
 ```python
 @bp.route("/<int:trip_id>/days", methods=["POST"])
 def add_day(trip_id):
-    trip = Trip.query.get_or_404(trip_id)
+    trip = db.get_or_404(Trip, trip_id)
     day = Day(trip_id=trip.id,
               date=_parse_date(request.form["date"]),
               city_id=int(request.form["city_id"]) if request.form.get("city_id") else None,
@@ -1413,7 +1413,7 @@ def add_day(trip_id):
 
 @bp.route("/<int:trip_id>/days/<int:day_id>/entries", methods=["POST"])
 def add_entry(trip_id, day_id):
-    day = Day.query.get_or_404(day_id)
+    day = db.get_or_404(Day, day_id)
     entry = Entry(day_id=day.id,
                   category=request.form["category"],
                   title=request.form["title"].strip(),
@@ -1433,7 +1433,7 @@ def add_entry(trip_id, day_id):
 ```python
 @bp.route("/<int:trip_id>")
 def detail(trip_id):
-    trip = Trip.query.get_or_404(trip_id)
+    trip = db.get_or_404(Trip, trip_id)
     return render_template("trips/detail.html", trip=trip,
                            stats=trip_stats(trip), categories=CATEGORIES)
 ```
@@ -1574,7 +1574,7 @@ Expected: FAIL。
 ```python
 @bp.route("/<int:trip_id>/stats")
 def stats_page(trip_id):
-    trip = Trip.query.get_or_404(trip_id)
+    trip = db.get_or_404(Trip, trip_id)
     s = trip_stats(trip)
     cat_labels = [k for k, v in s["by_category"].items() if v > 0]
     cat_values = [float(s["by_category"][k]) for k in cat_labels]

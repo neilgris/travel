@@ -46,7 +46,7 @@ def _apply_form(trip):
     trip.currencies = []
     for code, rate in zip(request.form.getlist("cur_code"),
                           request.form.getlist("cur_rate")):
-        if code.strip():
+        if code.strip() and rate.strip():
             trip.currencies.append(TripCurrency(
                 currency_code=code.strip().upper(), rate=Decimal(rate)))
     # people
@@ -71,6 +71,6 @@ def create():
 
 @bp.route("/<int:trip_id>")
 def detail(trip_id):
-    trip = Trip.query.get_or_404(trip_id)
+    trip = db.get_or_404(Trip, trip_id)
     return render_template("trips/detail.html", trip=trip,
                            stats=trip_stats(trip))
