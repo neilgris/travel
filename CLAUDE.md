@@ -37,6 +37,42 @@ Trip 旅程 ──1:N── Leg 行程段 (有序: 出发城市→到达城市 +
 
 详见设计文档第 3 节。
 
+## 目录结构
+
+```
+app/
+├── __init__.py        应用工厂 create_app
+├── config.py          配置（SECRET_KEY、DB 路径，env 可覆盖）
+├── extensions.py      db 等扩展实例
+├── blueprints/        路由层（按功能分蓝图，只管 HTTP）
+│   ├── main.py        首页 / 旅程列表
+│   ├── trips.py       旅程 CRUD、详情、统计、记录录入
+│   └── settings.py    同行人 / 城市管理
+├── models/            数据层（SQLAlchemy 模型，只管数据）
+│   ├── city.py        City
+│   ├── person.py      Person
+│   ├── trip.py        Trip / Leg / TripCurrency / TripPerson
+│   └── day.py         Day / Entry / EntryImage
+├── services/          业务逻辑（无 HTTP，可独立测试）
+│   ├── geocoding.py   城市坐标地理编码（Nominatim）
+│   ├── stats.py       花费换算与单旅程统计
+│   └── uploads.py     图片上传保存
+├── templates/         Jinja2 模板（trips/ settings/ + base.html）
+└── static/style.css   全站样式
+run.py                 启动入口
+tests/                 pytest，每个模块对应一个测试文件
+instance/travel.db     SQLite（首次启动自动建，已 gitignore）
+uploads/               图片（已 gitignore）
+```
+
+## 约定
+
+- **TDD**：先写失败测试再实现；`tests/` 与模块一一对应。
+- **分层**：路由进 `blueprints/`，业务逻辑进 `services/`，`models/` 只管数据；蓝图里不写复杂逻辑。
+- **金额**：一律 `Decimal`，换算 `人民币 = 外币 ÷ 汇率`，两位四舍五入。
+- **图片**：存 `uploads/`，库里只存路径。
+- **文档**：改动按下方「文档同步纪律」与 [DECISIONS.md](DECISIONS.md) D6 的规则同步。
+
 ## 版本
 
 - **第一版（当前）**：记录流程 + 单旅程统计；旅程页仅列表概要。
@@ -56,7 +92,14 @@ pytest -v            # 运行测试
 
 ## 文档同步纪律 ⚠️
 
-每次改动，**代码与文档一起更新**：
-- 改数据模型 → 更新设计文档 + 本文件数据模型速览
-- 做新取舍 → 追加到 DECISIONS.md
-- 改需求 → 更新设计文档
+文档分四类，更新规则由「类型」决定，**不是每份每次都改**（完整版见 [DECISIONS.md](DECISIONS.md) D6）：
+
+| 文档 | 类型 | 何时更新 |
+|------|------|----------|
+| 设计文档 spec | 状态快照 | 改**数据模型/页面/统计/需求**时同步；上线/删**功能**时改「功能总览」节 |
+| 本文件 CLAUDE.md | 入口/地图 | 改**结构/技术栈/怎么跑**时 |
+| DECISIONS.md | 追加日志 | 有**新取舍/踩坑**时**追加**（不改旧条目） |
+| docs/plans/* | 一次性 | 计划做完即归档，**不再维护** |
+
+> 改 bug / 调样式 / 加测试 → 只靠 commit message 记录，**不碰文档**。
+> 一次迭代合并前自检：对照上表，该动的动了、不该动的别动。
