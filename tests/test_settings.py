@@ -7,6 +7,24 @@ from app.models.trip import Trip, Leg
 from app.models.day import Day
 
 
+def test_cities_grouped_by_country(client, app):
+    with app.app_context():
+        db.session.add_all([
+            City(name="东京", country="日本"),
+            City(name="大阪", country="日本"),
+            City(name="北京", country="中国"),
+            City(name="无国城"),
+        ])
+        db.session.commit()
+    html = client.get("/settings/cities").get_data(as_text=True)
+    # 每个国家出现一次分组标题，无国家的归入「未分类」
+    assert 'class="city-group"' in html
+    assert "未分类" in html
+    # 分组标题出现在该组城市之前
+    assert html.index("日本") < html.index("东京")
+    assert html.index("未分类") < html.index("无国城")
+
+
 def test_add_person(client, app):
     resp = client.post("/settings/people", data={"name": "老婆"},
                        follow_redirects=True)

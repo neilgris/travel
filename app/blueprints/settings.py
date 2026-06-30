@@ -22,6 +22,18 @@ def _parse_coord(value):
         return None
 
 
+def _group_cities_by_country():
+    """按国家分组城市，返回 [(国家标题, [城市...])]；无国家的归入「未分类」放最后。"""
+    cities = City.query.order_by(City.name).all()
+    groups = {}
+    for c in cities:
+        groups.setdefault(c.country, []).append(c)
+    ordered = [(k, groups[k]) for k in sorted(g for g in groups if g)]
+    if None in groups:
+        ordered.append(("未分类", groups[None]))
+    return ordered
+
+
 @bp.route("/people", methods=["GET", "POST"])
 def people():
     if request.method == "POST":
@@ -83,7 +95,7 @@ def cities():
         flash("已添加城市" + ("" if coords else "（未找到坐标，可稍后补）"))
         return redirect(url_for("settings.cities"))
     return render_template("settings/cities.html",
-                           cities=City.query.order_by(City.name).all())
+                           city_groups=_group_cities_by_country())
 
 
 @bp.route("/cities/<int:cid>/edit", methods=["POST"])

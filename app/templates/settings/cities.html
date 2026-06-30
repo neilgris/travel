@@ -11,7 +11,9 @@
   <div class="field"><label>国家/地区（选填）</label><input name="country"></div>
   <button class="btn" type="submit">添加（自动获取坐标）</button>
 </form>
-{% for c in cities %}
+{% for country, group in city_groups %}
+<h3 class="city-group">{{ country }} <small>{{ group|length }}</small></h3>
+{% for c in group %}
 <div class="card settings-row">
   <form method="post" action="{{ url_for('settings.edit_city', cid=c.id) }}"
         class="inline-edit">
@@ -29,5 +31,6 @@
     <button class="btn btn-danger btn-sm" type="submit">删除</button>
   </form>
 </div>
+{% endfor %}
 {% endfor %}
 {% endblock %}
