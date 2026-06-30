@@ -36,6 +36,12 @@ def test_add_entry_mismatched_trip_day_returns_404(client, app):
     assert resp.status_code == 404
 
 
+def test_add_day_form_defaults_date_to_trip_start(client, app):
+    tid, _ = make_trip(app)  # start_date = 2026-01-01
+    html = client.get(f"/trips/{tid}").get_data(as_text=True)
+    assert 'name="date" required value="2026-01-01"' in html
+
+
 def test_add_day_and_entry(client, app):
     tid, cid = make_trip(app)
     client.post(f"/trips/{tid}/days", data={

@@ -51,12 +51,19 @@
 <div class="card">
   <h3>+ 添加一天</h3>
   <form method="post" action="{{ url_for('trips.add_day', trip_id=trip.id) }}">
-    <label>日期</label><input type="date" name="date" required>
-    <label>所在城市</label>
-    <select name="city_id">
-      <option value="">—</option>
-      {% for c in trip.cities %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
-    </select>
+    <div class="form-row">
+      <div class="field">
+        <label>日期</label>
+        <input type="date" name="date" required value="{{ trip.start_date }}">
+      </div>
+      <div class="field">
+        <label>所在城市</label>
+        <select name="city_id">
+          <option value="">—</option>
+          {% for c in trip.cities %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
     <label>日记</label><textarea name="diary"></textarea>
     <button class="btn" type="submit">添加</button>
   </form>
