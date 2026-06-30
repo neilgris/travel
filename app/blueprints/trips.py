@@ -1,4 +1,5 @@
 import datetime as dt
+import json
 from decimal import Decimal
 from flask import (Blueprint, render_template, request, redirect,
                    url_for, flash, current_app)
@@ -111,5 +112,18 @@ def add_entry(trip_id, day_id):
 
 @bp.route("/<int:trip_id>/stats")
 def stats_page(trip_id):
-    # 占位：Task 12 替换为完整统计页
-    return ""
+    trip = db.get_or_404(Trip, trip_id)
+    s = trip_stats(trip)
+    cat_labels = [k for k, v in s["by_category"].items() if v > 0]
+    cat_values = [float(s["by_category"][k]) for k in cat_labels]
+    day_labels = [d["date"].isoformat() for d in s["by_day"]]
+    day_values = [float(d["total_cny"]) for d in s["by_day"]]
+    cat_labels_json = json.dumps(cat_labels, ensure_ascii=False)
+    cat_values_json = json.dumps(cat_values)
+    day_labels_json = json.dumps(day_labels, ensure_ascii=False)
+    day_values_json = json.dumps(day_values)
+    return render_template("trips/stats.html", trip=trip, stats=s,
+                           cat_labels_json=cat_labels_json,
+                           cat_values_json=cat_values_json,
+                           day_labels_json=day_labels_json,
+                           day_values_json=day_values_json)

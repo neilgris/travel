@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ trip.title }} · 统计{% endblock %}
+{% block content %}
+<h1>{{ trip.title }} · 花费统计</h1>
+<p><a href="{{ url_for('trips.detail', trip_id=trip.id) }}">← 返回详情</a></p>
+<p>总花费：<strong>￥{{ stats.total_cny }}</strong></p>
+
+<div class="card"><h3>按类别</h3><canvas id="catChart" height="160"></canvas></div>
+<div class="card"><h3>按天</h3><canvas id="dayChart" height="160"></canvas></div>
+
+<div class="card"><h3>按币种</h3>
+<table>
+  <tr><th>币种</th><th>原始金额</th><th>折合人民币</th></tr>
+  {% for cur in stats.by_currency %}
+  <tr><td>{{ cur.code }}</td><td>{{ cur.original }}</td><td>￥{{ cur.cny }}</td></tr>
+  {% endfor %}
+</table></div>
+
+<script>
+new Chart(document.getElementById('catChart'), {
+  type: 'pie',
+  data: { labels: {{ cat_labels_json | safe }},
+          datasets: [{ data: {{ cat_values_json | safe }} }] }
+});
+new Chart(document.getElementById('dayChart'), {
+  type: 'bar',
+  data: { labels: {{ day_labels_json | safe }},
+          datasets: [{ label: '人民币', data: {{ day_values_json | safe }} }] },
+  options: { scales: { y: { beginAtZero: true } } }
+});
+</script>
+{% endblock %}
