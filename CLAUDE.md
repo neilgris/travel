@@ -13,7 +13,7 @@
 | **本文件 CLAUDE.md** | 项目概览、技术栈、如何运行、目录结构、约定 |
 | [docs/specs/2026-06-30-travel-journal-design.md](docs/specs/2026-06-30-travel-journal-design.md) | 需求与设计（数据模型、页面、统计的权威来源） |
 | [DECISIONS.md](DECISIONS.md) | 关键决策流水账（为什么这样选） |
-| `docs/plans/` | 实现计划（设计定稿后生成） |
+| [docs/plans/2026-06-30-travel-journal-v1.md](docs/plans/2026-06-30-travel-journal-v1.md) | 第一版实现计划（13 个 TDD 任务） |
 
 ## 技术栈
 
