@@ -19,7 +19,8 @@ class Trip(db.Model):
                            cascade="all, delete-orphan")
     currencies = db.relationship("TripCurrency", backref="trip",
                                  cascade="all, delete-orphan")
-    # days relationship added in Task 5 when Day model is defined
+    days = db.relationship("Day", backref="trip", order_by="Day.date",
+                           cascade="all, delete-orphan")
     people = db.relationship("Person", secondary=trip_person, backref="trips")
 
     @property
