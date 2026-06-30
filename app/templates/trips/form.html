@@ -41,12 +41,23 @@
   <h3>币种与汇率（1 人民币 = ? 外币）</h3>
   <div id="currencies">
     {% for c in (trip.currencies if trip else [None]) %}
-    <div><input name="cur_code" placeholder="如 JPY"
-                value="{{ c.currency_code if c else '' }}">
-         <input name="cur_rate" placeholder="如 20.8"
-                value="{{ c.rate if c else '' }}"></div>
+    <div>
+      <select name="cur_code">
+        <option value="">选择币种</option>
+        {% for code, name, flag in currency_options %}
+        <option value="{{ code }}"
+          {{ 'selected' if c and c.currency_code == code }}>{{ flag }} {{ name }}（{{ code }}）</option>
+        {% endfor %}
+        {% if c and c.currency_code and c.currency_code not in currency_options|map(attribute=0) %}
+        <option value="{{ c.currency_code }}" selected>{{ c.currency_code }}</option>
+        {% endif %}
+      </select>
+      <input name="cur_rate" type="number" step="0.0001" placeholder="如 20.8"
+             value="{{ c.rate if c else '' }}">
+    </div>
     {% endfor %}
   </div>
+  <small>例：1 人民币 = 20.8 日元，则汇率填 20.8。</small>
 
   <h3>同行人</h3>
   {% for p in people %}

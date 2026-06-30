@@ -7,7 +7,8 @@ from app.extensions import db
 from app.models.trip import Trip, Leg, TripCurrency
 from app.models.city import City
 from app.models.person import Person
-from app.models.day import Day, Entry, EntryImage, CATEGORIES, TRANSPORT_MODES
+from app.models.day import (Day, Entry, EntryImage, CATEGORIES,
+                            TRANSPORT_MODES, COMMON_CURRENCIES)
 from app.services.stats import trip_stats
 from app.services.uploads import save_upload
 
@@ -68,7 +69,8 @@ def create():
     return render_template("trips/form.html", trip=None,
                            cities=City.query.order_by(City.name).all(),
                            people=Person.query.order_by(Person.name).all(),
-                           modes=TRANSPORT_MODES)
+                           modes=TRANSPORT_MODES,
+                           currency_options=COMMON_CURRENCIES)
 
 
 @bp.route("/<int:trip_id>/edit", methods=["GET", "POST"])
@@ -82,7 +84,8 @@ def edit(trip_id):
     return render_template("trips/form.html", trip=trip,
                            cities=City.query.order_by(City.name).all(),
                            people=Person.query.order_by(Person.name).all(),
-                           modes=TRANSPORT_MODES)
+                           modes=TRANSPORT_MODES,
+                           currency_options=COMMON_CURRENCIES)
 
 
 @bp.route("/<int:trip_id>")
