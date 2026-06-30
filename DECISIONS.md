@@ -58,3 +58,17 @@
 - **第二版**：旅程首页地图/地球路线展示。原因：先跑通基本流程，地图作为增强。
 - 统计**只做单旅程**，不做跨旅程全局统计。
 - 菜单：一级 `旅程`(含 创建/统计) ｜ `设置`(同行人/城市)。
+
+---
+
+## 2026-06-30 · D5：技术落地
+
+第一版实现完成后的技术细节记录。
+
+- **ORM**：Flask-SQLAlchemy（模型层），用 `db.get_or_404` 的 2.0 形式避免 LegacyAPIWarning。
+- **地理编码**：OpenStreetMap Nominatim（免费无 API key），失败返回 None。
+- **图表**：Chart.js（base.html CDN 引入），实时渲染统计数据。
+- **金额**：`Numeric` 列 + Python `Decimal`，每条目四舍五入两位（ROUND_HALF_UP），各汇总口径一致。
+- **时间戳**：`created_at` 用 timezone-aware `datetime.now(timezone.utc)`（避免 utcnow 弃用警告）。
+- **Flash 消息**：需要 `SECRET_KEY`（已加入 config，env 可覆盖）。
+- **币种下拉**：记录花费时只能选「CNY + 本旅程已声明外币」，to_cny 对未配置币种有防御性 0.00 兜底（UI 约束，正常不可达）。

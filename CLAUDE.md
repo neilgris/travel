@@ -44,7 +44,14 @@ Trip 旅程 ──1:N── Leg 行程段 (有序: 出发城市→到达城市 +
 
 ## 如何运行
 
-> 待实现后补充（Flask 启动命令、初始化数据库、依赖安装）。
+```bash
+python -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+python run.py        # 访问 http://localhost:5000
+pytest -v            # 运行测试
+```
+
+数据库 `instance/travel.db` 首次启动自动创建；图片存 `uploads/`。
 
 ## 文档同步纪律 ⚠️
 
