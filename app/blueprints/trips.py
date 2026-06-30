@@ -115,6 +115,15 @@ def edit(trip_id):
                            currency_options=COMMON_CURRENCIES)
 
 
+@bp.route("/<int:trip_id>/delete", methods=["POST"])
+def delete(trip_id):
+    trip = db.get_or_404(Trip, trip_id)
+    db.session.delete(trip)
+    db.session.commit()
+    flash("旅程已删除")
+    return redirect(url_for("trips.list"))
+
+
 @bp.route("/<int:trip_id>")
 def detail(trip_id):
     trip = db.get_or_404(Trip, trip_id)

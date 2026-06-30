@@ -84,6 +84,22 @@ def test_edit_trip(client, app):
         assert db.session.get(Trip, tid).title == "新标题"
 
 
+def test_delete_trip(client, app):
+    seed_cities(app)
+    client.post("/trips/create", data={
+        "title": "待删之旅", "start_date": "2026-06-01", "end_date": "2026-06-02",
+        "leg_seq": ["1"], "leg_from": ["北京"], "leg_to": ["香港"], "leg_mode": ["飞机"],
+    }, follow_redirects=True)
+    with app.app_context():
+        tid = Trip.query.filter_by(title="待删之旅").one().id
+    resp = client.post(f"/trips/{tid}/delete", follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        assert db.session.get(Trip, tid) is None
+        # 城市为复用数据，不应被一起删除
+        assert City.query.filter_by(name="北京").count() == 1
+
+
 def test_list_shows_trip(client, app):
     seed_cities(app)
     client.post("/trips/create", data={
