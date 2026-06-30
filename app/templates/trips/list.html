@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}旅程{% endblock %}
+{% block content %}
+<h1>我的旅程</h1>
+<a class="btn" href="{{ url_for('trips.create') }}">+ 创建旅程</a>
+{% for t in trips %}
+<div class="card">
+  <h3><a href="{{ url_for('trips.detail', trip_id=t.id) }}">{{ t.title }}</a></h3>
+  <div>{{ t.start_date }} ~ {{ t.end_date }}</div>
+  <div>城市：{{ t.cities | map(attribute='name') | join(' · ') or '—' }}</div>
+  <div>总花费：￥{{ summaries[t.id] }}</div>
+</div>
+{% else %}<p>还没有旅程，点上面创建一个。</p>{% endfor %}
+{% endblock %}

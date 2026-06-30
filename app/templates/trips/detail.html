@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}{{ trip.title }}{% endblock %}
+{% block content %}
+<h1>{{ trip.title }}</h1>
+<p>{{ trip.start_date }} ~ {{ trip.end_date }} · 总花费 ￥{{ stats.total_cny }}</p>
+{% endblock %}

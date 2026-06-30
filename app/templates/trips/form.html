@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑' if trip else '创建' }}旅程{% endblock %}
+{% block content %}
+<h1>{{ '编辑' if trip else '创建' }}旅程</h1>
+<form method="post" class="card">
+  <label>标题</label>
+  <input name="title" required value="{{ trip.title if trip else '' }}">
+  <label>开始日期</label>
+  <input type="date" name="start_date" required
+         value="{{ trip.start_date if trip else '' }}">
+  <label>结束日期</label>
+  <input type="date" name="end_date" required
+         value="{{ trip.end_date if trip else '' }}">
+  <label>备注</label>
+  <textarea name="notes">{{ trip.notes if trip else '' }}</textarea>
+
+  <h3>行程段（出发→到达 + 出行方式）</h3>
+  <div id="legs">
+    {% for leg in (trip.legs if trip else [None, None]) %}
+    <div class="leg-row">
+      <input type="hidden" name="leg_seq" value="{{ loop.index }}">
+      <select name="leg_from">
+        <option value="">出发城市</option>
+        {% for c in cities %}<option value="{{ c.id }}"
+          {{ 'selected' if leg and leg.from_city_id==c.id }}>{{ c.name }}</option>{% endfor %}
+      </select>
+      <select name="leg_to">
+        <option value="">到达城市</option>
+        {% for c in cities %}<option value="{{ c.id }}"
+          {{ 'selected' if leg and leg.to_city_id==c.id }}>{{ c.name }}</option>{% endfor %}
+      </select>
+      <select name="leg_mode">
+        <option value="">方式</option>
+        {% for m in modes %}<option {{ 'selected' if leg and leg.transport_mode==m }}>{{ m }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endfor %}
+  </div>
+  <small>城市不在列表？先到「设置→城市」添加。</small>
+
+  <h3>币种与汇率（1 人民币 = ? 外币）</h3>
+  <div id="currencies">
+    {% for c in (trip.currencies if trip else [None]) %}
+    <div><input name="cur_code" placeholder="如 JPY"
+                value="{{ c.currency_code if c else '' }}">
+         <input name="cur_rate" placeholder="如 20.8"
+                value="{{ c.rate if c else '' }}"></div>
+    {% endfor %}
+  </div>
+
+  <h3>同行人</h3>
+  {% for p in people %}
+  <label style="font-weight:400">
+    <input type="checkbox" name="people" value="{{ p.id }}" style="width:auto"
+      {{ 'checked' if trip and p in trip.people }}> {{ p.name }}</label>
+  {% endfor %}
+
+  <p><button class="btn" type="submit">保存</button></p>
+</form>
+{% endblock %}
