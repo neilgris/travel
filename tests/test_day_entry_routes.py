@@ -1,6 +1,7 @@
 import datetime as dt
+from decimal import Decimal
 from app.models.city import City
-from app.models.trip import Trip
+from app.models.trip import Trip, TripCurrency
 from app.models.day import Day, Entry
 
 
@@ -9,6 +10,7 @@ def make_trip(app):
     with app.app_context():
         c = City(name="香港")
         t = Trip(title="t", start_date=dt.date(2026, 1, 1), end_date=dt.date(2026, 1, 3))
+        t.currencies = [TripCurrency(currency_code="HKD", rate=Decimal("1.1"))]
         db.session.add_all([c, t])
         db.session.commit()
         return t.id, c.id

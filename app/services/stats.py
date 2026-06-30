@@ -12,6 +12,7 @@ def to_cny(amount, currency_code, rate_map):
         rate = Decimal(rate_map[currency_code])
         cny = amount / rate
     else:
+        # Defensive: UI constrains entry currency to CNY + trip.currencies, so an unconfigured code should not reach here; treat as 0 rather than crash.
         cny = Decimal("0.00")
     return cny.quantize(TWO, rounding=ROUND_HALF_UP)
 

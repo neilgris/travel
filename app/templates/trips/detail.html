@@ -30,7 +30,12 @@
     <select name="category">{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select>
     <input name="title" placeholder="标题" required>
     <input name="amount" placeholder="金额" type="number" step="0.01">
-    <input name="currency_code" placeholder="币种 默认CNY" value="CNY">
+    <select name="currency_code">
+      <option value="CNY">人民币 (CNY)</option>
+      {% for cur in trip.currencies %}
+      <option value="{{ cur.currency_code }}">{{ cur.currency_code }}</option>
+      {% endfor %}
+    </select>
     <textarea name="description" placeholder="描述"></textarea>
     <input type="file" name="images" accept="image/*" multiple>
     <button class="btn" type="submit">保存记录</button>
