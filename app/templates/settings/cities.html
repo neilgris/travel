@@ -6,9 +6,9 @@
   <a href="{{ url_for('settings.people') }}">同行人</a>
   <a href="{{ url_for('settings.cities') }}">城市</a>
 </nav>
-<form method="post" class="card">
-  <label>城市名</label><input name="name" required>
-  <label>国家/地区（选填）</label><input name="country">
+<form method="post" class="card create-row">
+  <div class="field"><label>城市名</label><input name="name" required></div>
+  <div class="field"><label>国家/地区（选填）</label><input name="country"></div>
   <button class="btn" type="submit">添加（自动获取坐标）</button>
 </form>
 {% for c in cities %}
