@@ -1,0 +1,12 @@
+body { font-family: system-ui, sans-serif; margin: 0; color: #222; }
+.topnav { background:#2c3e50; padding:.8rem 1rem; }
+.topnav a { color:#fff; margin-right:1rem; text-decoration:none; }
+.container { max-width: 900px; margin: 1.5rem auto; padding: 0 1rem; }
+.flash { background:#dff0d8; padding:.5rem; margin-bottom:1rem; }
+.card { border:1px solid #ddd; border-radius:8px; padding:1rem; margin-bottom:1rem; }
+.btn { display:inline-block; background:#2980b9; color:#fff; padding:.4rem .8rem;
+       border:none; border-radius:4px; text-decoration:none; cursor:pointer; }
+.entry { border-left:3px solid #2980b9; padding-left:.6rem; margin:.5rem 0; }
+img.thumb { max-height:90px; border-radius:4px; margin:2px; }
+label { display:block; margin:.5rem 0 .2rem; font-weight:600; }
+input, select, textarea { width:100%; padding:.4rem; box-sizing:border-box; }

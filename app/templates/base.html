@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}旅游记录{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+  <nav class="topnav">
+    <a href="{{ url_for('trips.list') }}">旅程</a>
+    <a href="{{ url_for('trips.create') }}">创建</a>
+    <a href="{{ url_for('settings.people') }}">设置</a>
+  </nav>
+  <main class="container">
+    {% with messages = get_flashed_messages() %}
+      {% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
