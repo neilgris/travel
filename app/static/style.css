@@ -1,12 +1,221 @@
-body { font-family: system-ui, sans-serif; margin: 0; color: #222; }
-.topnav { background:#2c3e50; padding:.8rem 1rem; }
-.topnav a { color:#fff; margin-right:1rem; text-decoration:none; }
-.container { max-width: 900px; margin: 1.5rem auto; padding: 0 1rem; }
-.flash { background:#dff0d8; padding:.5rem; margin-bottom:1rem; }
-.card { border:1px solid #ddd; border-radius:8px; padding:1rem; margin-bottom:1rem; }
-.btn { display:inline-block; background:#2980b9; color:#fff; padding:.4rem .8rem;
-       border:none; border-radius:4px; text-decoration:none; cursor:pointer; }
-.entry { border-left:3px solid #2980b9; padding-left:.6rem; margin:.5rem 0; }
-img.thumb { max-height:90px; border-radius:4px; margin:2px; }
-label { display:block; margin:.5rem 0 .2rem; font-weight:600; }
-input, select, textarea { width:100%; padding:.4rem; box-sizing:border-box; }
+/* ===== 清新旅行风 ===== */
+:root {
+  --bg: #f7f5f0;          /* 米白背景 */
+  --surface: #ffffff;     /* 卡片白 */
+  --primary: #2a9d8f;     /* 青绿主色 */
+  --primary-dark: #21867a;
+  --accent: #e76f51;      /* 珊瑚强调 */
+  --accent-dark: #d65b3d;
+  --text: #2b2b2b;
+  --muted: #7b7b76;
+  --border: #e7e2d8;      /* 暖色细边 */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 10px rgba(40, 40, 30, 0.06), 0 1px 3px rgba(40, 40, 30, 0.05);
+  --ring: rgba(42, 157, 143, 0.22);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+               "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- 顶部导航 ---- */
+.topnav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(180%) blur(8px);
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.topnav .brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--primary);
+  text-decoration: none;
+  letter-spacing: 0.3px;
+}
+.topnav .navlinks { display: flex; gap: 0.4rem; margin-left: auto; }
+.topnav .navlinks a {
+  color: var(--text);
+  text-decoration: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+.topnav .navlinks a:hover { background: var(--bg); color: var(--primary); }
+
+/* ---- 主容器 ---- */
+.container { max-width: 780px; margin: 2rem auto; padding: 0 1.25rem; }
+
+h1 { font-size: 1.7rem; font-weight: 700; margin: 0 0 1rem; letter-spacing: 0.2px; }
+h2 { font-size: 1.3rem; font-weight: 700; margin: 1.6rem 0 0.8rem; }
+h3 {
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--primary-dark);
+  margin: 1.4rem 0 0.6rem;
+  padding-left: 0.6rem;
+  border-left: 3px solid var(--primary);
+}
+
+/* ---- 卡片 ---- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem 1.5rem;
+  margin-bottom: 1.2rem;
+  box-shadow: var(--shadow);
+}
+.card h3:first-child, .card h1:first-child { margin-top: 0; }
+
+/* ---- 表单 ---- */
+label {
+  display: block;
+  margin: 0.9rem 0 0.3rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #4a4a45;
+}
+input, select, textarea {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input::placeholder, textarea::placeholder { color: #b6b2a8; }
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+textarea { min-height: 80px; resize: vertical; }
+input[type="checkbox"] { width: auto; accent-color: var(--primary); }
+input[type="date"] { accent-color: var(--primary); }
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237b7b76' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  padding-right: 2rem;
+  cursor: pointer;
+}
+
+/* 行程段：出发 / 到达 / 方式 一行排列 */
+.leg-row { display: flex; gap: 0.6rem; margin-bottom: 0.6rem; }
+.leg-row select { flex: 1; min-width: 0; }
+
+/* 币种 / 汇率 一行排列，各占一半 */
+#currencies > div { display: flex; gap: 0.6rem; margin-bottom: 0.6rem; }
+#currencies > div select,
+#currencies > div input { flex: 1 1 0; min-width: 0; }
+
+/* 同行人勾选项 */
+.card > label > input[type="checkbox"] { margin-right: 0.4rem; }
+
+/* ---- 按钮 ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--primary);
+  color: #fff;
+  padding: 0.6rem 1.3rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(42, 157, 143, 0.3);
+  transition: background 0.15s, transform 0.05s, box-shadow 0.15s;
+}
+.btn:hover { background: var(--primary-dark); box-shadow: 0 3px 8px rgba(42, 157, 143, 0.32); }
+.btn:active { transform: translateY(1px); }
+.btn.accent { background: var(--accent); box-shadow: 0 1px 2px rgba(231, 111, 81, 0.3); }
+.btn.accent:hover { background: var(--accent-dark); }
+
+/* ---- 子导航（设置页 同行人/城市 切换）---- */
+.subnav { display: flex; gap: 0.5rem; margin: 0 0 1.2rem; }
+.subnav a {
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--muted);
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: #fff;
+  transition: color 0.15s, border-color 0.15s;
+}
+.subnav a:hover { color: var(--primary); border-color: var(--primary); }
+
+/* ---- 旅程详情条目 ---- */
+.entry {
+  border-left: 3px solid var(--accent);
+  padding: 0.3rem 0 0.3rem 0.7rem;
+  margin: 0.6rem 0;
+}
+
+/* ---- 图片缩略 ---- */
+img.thumb {
+  height: 92px;
+  width: 92px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin: 4px 4px 0 0;
+  vertical-align: middle;
+}
+
+/* ---- 表格（统计 按币种 等）---- */
+table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; }
+th, td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--border); }
+th { font-size: 0.85rem; color: var(--muted); font-weight: 600; background: #faf8f3; }
+tr:last-child td { border-bottom: none; }
+
+/* ---- 折叠（添加记录）---- */
+details { margin-top: 0.6rem; }
+summary {
+  cursor: pointer;
+  color: var(--primary-dark);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.3rem 0;
+  user-select: none;
+}
+summary::-webkit-details-marker { color: var(--primary); }
+details[open] summary { margin-bottom: 0.5rem; }
+
+/* ---- 提示信息 ---- */
+.flash {
+  background: #e6f4f1;
+  border-left: 4px solid var(--primary);
+  color: #1d6f64;
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1.2rem;
+}
+
+small { color: var(--muted); font-size: 0.82rem; }
+a { color: var(--primary-dark); }
+canvas { max-width: 100%; }

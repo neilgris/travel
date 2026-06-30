@@ -2,8 +2,10 @@
 {% block title %}同行人{% endblock %}
 {% block content %}
 <h1>同行人</h1>
-<nav><a href="{{ url_for('settings.people') }}">同行人</a> |
-     <a href="{{ url_for('settings.cities') }}">城市</a></nav>
+<nav class="subnav">
+  <a href="{{ url_for('settings.people') }}">同行人</a>
+  <a href="{{ url_for('settings.cities') }}">城市</a>
+</nav>
 <form method="post" enctype="multipart/form-data" class="card">
   <label>姓名</label><input name="name" required>
   <label>照片</label><input type="file" name="photo" accept="image/*">

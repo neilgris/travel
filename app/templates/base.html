@@ -8,9 +8,12 @@
 </head>
 <body>
   <nav class="topnav">
-    <a href="{{ url_for('trips.list') }}">旅程</a>
-    <a href="{{ url_for('trips.create') }}">创建</a>
-    <a href="{{ url_for('settings.people') }}">设置</a>
+    <a class="brand" href="{{ url_for('trips.list') }}">✈ 旅行记录</a>
+    <div class="navlinks">
+      <a href="{{ url_for('trips.list') }}">旅程</a>
+      <a href="{{ url_for('trips.create') }}">创建</a>
+      <a href="{{ url_for('settings.people') }}">设置</a>
+    </div>
   </nav>
   <main class="container">
     {% with messages = get_flashed_messages() %}
