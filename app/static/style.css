@@ -121,6 +121,29 @@ select {
   cursor: pointer;
 }
 
+/* 旅程表单：整体收紧 */
+.trip-form label { margin-top: 0; margin-bottom: 0.25rem; }
+.trip-form h3 { margin: 1rem 0 0.5rem; }
+.trip-form > label { margin-top: 0.7rem; }
+.trip-form small { display: block; margin-top: 0.3rem; }
+.trip-form textarea { min-height: 56px; }
+
+/* 标题 / 开始 / 结束 一行排列 */
+.form-row { display: flex; gap: 0.7rem; flex-wrap: wrap; }
+.form-row .field { flex: 1 1 8rem; min-width: 0; }
+.form-row .field-grow { flex: 2 1 12rem; }
+
+/* 同行人：横向换行紧凑排列 */
+.people-row { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
+.people-row .person-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-weight: 400;
+}
+.people-row .person-check input { width: auto; }
+
 /* 行程段：出发 / 到达 / 方式 一行排列 */
 .leg-row { display: flex; gap: 0.6rem; margin-bottom: 0.6rem; }
 .leg-row input[name="leg_from"],

@@ -2,15 +2,23 @@
 {% block title %}{{ '编辑' if trip else '创建' }}旅程{% endblock %}
 {% block content %}
 <h1>{{ '编辑' if trip else '创建' }}旅程</h1>
-<form method="post" class="card">
-  <label>标题</label>
-  <input name="title" required value="{{ trip.title if trip else '' }}">
-  <label>开始日期</label>
-  <input type="date" name="start_date" required
-         value="{{ trip.start_date if trip else '' }}">
-  <label>结束日期</label>
-  <input type="date" name="end_date" required
-         value="{{ trip.end_date if trip else '' }}">
+<form method="post" class="card trip-form">
+  <div class="form-row">
+    <div class="field field-grow">
+      <label>标题</label>
+      <input name="title" required value="{{ trip.title if trip else '' }}">
+    </div>
+    <div class="field">
+      <label>开始日期</label>
+      <input type="date" name="start_date" required
+             value="{{ trip.start_date if trip else '' }}">
+    </div>
+    <div class="field">
+      <label>结束日期</label>
+      <input type="date" name="end_date" required
+             value="{{ trip.end_date if trip else '' }}">
+    </div>
+  </div>
   <label>备注</label>
   <textarea name="notes">{{ trip.notes if trip else '' }}</textarea>
 
@@ -57,11 +65,13 @@
   <small>例：1 人民币 = 20.8 日元，则汇率填 20.8。</small>
 
   <h3>同行人</h3>
-  {% for p in people %}
-  <label style="font-weight:400">
-    <input type="checkbox" name="people" value="{{ p.id }}" style="width:auto"
-      {{ 'checked' if trip and p in trip.people }}> {{ p.name }}</label>
-  {% endfor %}
+  <div class="people-row">
+    {% for p in people %}
+    <label class="person-check">
+      <input type="checkbox" name="people" value="{{ p.id }}"
+        {{ 'checked' if trip and p in trip.people }}> {{ p.name }}</label>
+    {% endfor %}
+  </div>
 
   <p><button class="btn" type="submit">保存</button></p>
 </form>
