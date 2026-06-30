@@ -16,8 +16,8 @@ def test_trip_with_legs_derives_cities_and_modes(session):
         Leg(seq=2, from_city=hk, to_city=ok, transport_mode="游轮"),
     ]
     session.add(t); session.commit()
-    assert {c.name for c in t.cities} == {"北京", "香港", "冲绳"}
-    assert set(t.transport_modes) == {"飞机", "游轮"}
+    assert [c.name for c in t.cities] == ["北京", "香港", "冲绳"]
+    assert t.transport_modes == ["飞机", "游轮"]
 
 def test_trip_currencies_and_people(session):
     bj, hk, ok = make_cities(session)

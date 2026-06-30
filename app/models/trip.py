@@ -28,7 +28,8 @@ class Trip(db.Model):
         for leg in self.legs:
             for c in (leg.from_city, leg.to_city):
                 if c and c.id not in seen:
-                    seen.add(c.id); out.append(c)
+                    seen.add(c.id)
+                    out.append(c)
         return out
 
     @property
