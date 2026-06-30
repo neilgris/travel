@@ -1,13 +1,14 @@
 import datetime as dt
 from decimal import Decimal
 from flask import (Blueprint, render_template, request, redirect,
-                   url_for, flash)
+                   url_for, flash, current_app)
 from app.extensions import db
 from app.models.trip import Trip, Leg, TripCurrency
 from app.models.city import City
 from app.models.person import Person
-from app.models.day import TRANSPORT_MODES
+from app.models.day import Day, Entry, EntryImage, CATEGORIES, TRANSPORT_MODES
 from app.services.stats import trip_stats
+from app.services.uploads import save_upload
 
 bp = Blueprint("trips", __name__, url_prefix="/trips")
 
@@ -73,4 +74,42 @@ def create():
 def detail(trip_id):
     trip = db.get_or_404(Trip, trip_id)
     return render_template("trips/detail.html", trip=trip,
-                           stats=trip_stats(trip))
+                           stats=trip_stats(trip), categories=CATEGORIES)
+
+
+@bp.route("/<int:trip_id>/days", methods=["POST"])
+def add_day(trip_id):
+    trip = db.get_or_404(Trip, trip_id)
+    day = Day(trip_id=trip.id,
+              date=_parse_date(request.form["date"]),
+              city_id=int(request.form["city_id"]) if request.form.get("city_id") else None,
+              diary=request.form.get("diary") or None)
+    db.session.add(day)
+    db.session.commit()
+    flash("已添加一天")
+    return redirect(url_for("trips.detail", trip_id=trip.id))
+
+
+@bp.route("/<int:trip_id>/days/<int:day_id>/entries", methods=["POST"])
+def add_entry(trip_id, day_id):
+    day = db.get_or_404(Day, day_id)
+    entry = Entry(day_id=day.id,
+                  category=request.form["category"],
+                  title=request.form["title"].strip(),
+                  description=request.form.get("description") or None,
+                  amount=Decimal(request.form.get("amount") or "0"),
+                  currency_code=request.form.get("currency_code", "CNY").upper())
+    for f in request.files.getlist("images"):
+        rel = save_upload(f, current_app.config["UPLOAD_FOLDER"])
+        if rel:
+            entry.images.append(EntryImage(path=rel))
+    db.session.add(entry)
+    db.session.commit()
+    flash("已添加记录")
+    return redirect(url_for("trips.detail", trip_id=trip_id))
+
+
+@bp.route("/<int:trip_id>/stats")
+def stats_page(trip_id):
+    # 占位：Task 12 替换为完整统计页
+    return ""

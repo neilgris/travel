@@ -8,9 +8,11 @@ def to_cny(amount, currency_code, rate_map):
     amount = Decimal(amount)
     if currency_code == "CNY":
         cny = amount
-    else:
+    elif currency_code in rate_map:
         rate = Decimal(rate_map[currency_code])
         cny = amount / rate
+    else:
+        cny = Decimal("0.00")
     return cny.quantize(TWO, rounding=ROUND_HALF_UP)
 
 
