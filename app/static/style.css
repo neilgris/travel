@@ -254,7 +254,7 @@ select {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
 }
 .inline-edit input {
