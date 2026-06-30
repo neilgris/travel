@@ -27,7 +27,7 @@ class Entry(db.Model):
     description = db.Column(db.Text)
     amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     currency_code = db.Column(db.String(10), nullable=False, default="CNY")
-    created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
     images = db.relationship("EntryImage", backref="entry",
                              cascade="all, delete-orphan")
