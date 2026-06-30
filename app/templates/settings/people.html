@@ -12,9 +12,18 @@
   <button class="btn" type="submit">添加</button>
 </form>
 {% for p in people %}
-<div class="card">
-  {% if p.photo %}<img class="thumb" src="{{ url_for('main.uploads', filename=p.photo.split('/')[-1]) }}">{% endif %}
-  {{ p.name }}
+<div class="card settings-row">
+  <form method="post" action="{{ url_for('settings.edit_person', pid=p.id) }}"
+        enctype="multipart/form-data" class="inline-edit">
+    {% if p.photo %}<img class="thumb" src="{{ url_for('main.uploads', filename=p.photo.split('/')[-1]) }}">{% endif %}
+    <input name="name" value="{{ p.name }}" required>
+    <label class="muted">换照片 <input type="file" name="photo" accept="image/*"></label>
+    <button class="btn" type="submit">保存</button>
+  </form>
+  <form method="post" action="{{ url_for('settings.delete_person', pid=p.id) }}"
+        onsubmit="return confirm('确定删除 {{ p.name }}？');">
+    <button class="btn btn-danger" type="submit">删除</button>
+  </form>
 </div>
 {% endfor %}
 {% endblock %}

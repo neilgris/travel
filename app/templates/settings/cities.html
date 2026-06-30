@@ -12,8 +12,22 @@
   <button class="btn" type="submit">添加（自动获取坐标）</button>
 </form>
 {% for c in cities %}
-<div class="card">{{ c.name }}
-  {% if c.latitude %}<small>({{ c.latitude }}, {{ c.longitude }})</small>{% endif %}
+<div class="card settings-row">
+  <form method="post" action="{{ url_for('settings.edit_city', cid=c.id) }}"
+        class="inline-edit">
+    <input name="name" value="{{ c.name }}" required>
+    <input name="country" value="{{ c.country or '' }}" placeholder="国家/地区">
+    <input name="latitude" value="{{ c.latitude if c.latitude is not none else '' }}"
+           placeholder="纬度" size="8">
+    <input name="longitude" value="{{ c.longitude if c.longitude is not none else '' }}"
+           placeholder="经度" size="8">
+    <label class="muted">重新定位 <input type="checkbox" name="regeocode" value="1"></label>
+    <button class="btn" type="submit">保存</button>
+  </form>
+  <form method="post" action="{{ url_for('settings.delete_city', cid=c.id) }}"
+        onsubmit="return confirm('确定删除 {{ c.name }}？');">
+    <button class="btn btn-danger" type="submit">删除</button>
+  </form>
 </div>
 {% endfor %}
 {% endblock %}
