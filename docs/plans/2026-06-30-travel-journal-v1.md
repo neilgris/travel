@@ -486,11 +486,15 @@ git commit -m "feat: Trip/Leg/TripCurrency 模型与城市/出行方式派生"
 **Files:**
 - Create: `app/models/day.py`
 - Modify: `app/models/__init__.py`
+- Modify: `app/models/trip.py`（在此任务补上 `Trip.days` 关系）
 - Create: `tests/test_day_entry_model.py`
+
+> ⚠️ 计划修正（来自 Task 4 实测）：SQLAlchemy 2.0 在首次 mapper 配置时**即刻解析**所有关系的字符串引用，因此 `Trip.days = relationship("Day")` 不能在 Day 类存在前声明（会让 Task 4 的 create_all 直接报错）。故 `Trip.days` 关系**从 Task 4 移到本任务**，在 Day 定义之后再加回 Trip。
 
 **Interfaces:**
 - Consumes: `Trip`, `City`。
 - Produces:
+  - `Trip.days`（在 trip.py 补上，反向生成 `Day.trip`）。
   - `Day(id, trip_id, date, city_id, diary)`，关系 `city`, `entries`。
   - `Entry(id, day_id, category, title, description, amount, currency_code, created_at)`，关系 `images`。
   - `EntryImage(id, entry_id, path)`。
@@ -569,6 +573,13 @@ class EntryImage(db.Model):
 ```
 
 在 `app/models/__init__.py` 追加：`from .day import Day, Entry, EntryImage, CATEGORIES, TRANSPORT_MODES  # noqa: F401`
+
+并在 `app/models/trip.py` 的 `Trip` 类中补上 `days` 关系（Task 4 已按计划修正省略，此处加回）。加在 `people` 关系附近：
+```python
+    days = db.relationship("Day", backref="trip", order_by="Day.date",
+                           cascade="all, delete-orphan")
+```
+注意：`app/models/__init__.py` 的导入顺序需保证 `trip` 在 `day` 之前或之后均可——SQLAlchemy 在所有模型导入后统一配置 mapper，此时 `Day` 已定义，`Trip.days` 的字符串引用可正常解析。
 
 - [ ] **Step 4: 运行确认通过**
 
