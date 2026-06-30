@@ -10,6 +10,7 @@ from app.models.person import Person
 from app.models.day import (Day, Entry, EntryImage, CATEGORIES,
                             TRANSPORT_MODES, COMMON_CURRENCIES)
 from app.services.geocoding import geocode
+from app.services.exchange import fetch_rate
 from app.services.stats import trip_stats
 from app.services.uploads import save_upload
 
@@ -73,6 +74,14 @@ def _apply_form(trip):
     # people
     pids = [int(x) for x in request.form.getlist("people")]
     trip.people = Person.query.filter(Person.id.in_(pids)).all() if pids else []
+
+
+@bp.route("/exchange-rate")
+def exchange_rate():
+    """前端选币种时实时查汇率（1 人民币 = ? 外币）。"""
+    code = request.args.get("code", "")
+    rate = fetch_rate(code)
+    return {"code": code.strip().upper(), "rate": str(rate) if rate is not None else None}
 
 
 @bp.route("/create", methods=["GET", "POST"])
