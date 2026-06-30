@@ -47,11 +47,12 @@ Trip 旅程 ──1:N── Leg 行程段 (有序: 出发城市→到达城市 +
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
-python run.py        # 访问 http://localhost:5000
+python run.py        # 访问 http://localhost:8000
 pytest -v            # 运行测试
 ```
 
 数据库 `instance/travel.db` 首次启动自动创建；图片存 `uploads/`。
+默认端口 8000（避开 macOS AirPlay 占用的 5000）；可用 `PORT=xxxx python run.py` 覆盖。
 
 ## 文档同步纪律 ⚠️
 
