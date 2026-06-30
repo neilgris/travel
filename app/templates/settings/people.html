@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}同行人{% endblock %}
+{% block content %}
+<h1>同行人</h1>
+<nav><a href="{{ url_for('settings.people') }}">同行人</a> |
+     <a href="{{ url_for('settings.cities') }}">城市</a></nav>
+<form method="post" enctype="multipart/form-data" class="card">
+  <label>姓名</label><input name="name" required>
+  <label>照片</label><input type="file" name="photo" accept="image/*">
+  <button class="btn" type="submit">添加</button>
+</form>
+{% for p in people %}
+<div class="card">
+  {% if p.photo %}<img class="thumb" src="{{ url_for('main.uploads', filename=p.photo.split('/')[-1]) }}">{% endif %}
+  {{ p.name }}
+</div>
+{% endfor %}
+{% endblock %}

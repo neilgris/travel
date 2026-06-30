@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}城市{% endblock %}
+{% block content %}
+<h1>城市</h1>
+<nav><a href="{{ url_for('settings.people') }}">同行人</a> |
+     <a href="{{ url_for('settings.cities') }}">城市</a></nav>
+<form method="post" class="card">
+  <label>城市名</label><input name="name" required>
+  <label>国家/地区（选填）</label><input name="country">
+  <button class="btn" type="submit">添加（自动获取坐标）</button>
+</form>
+{% for c in cities %}
+<div class="card">{{ c.name }}
+  {% if c.latitude %}<small>({{ c.latitude }}, {{ c.longitude }})</small>{% endif %}
+</div>
+{% endfor %}
+{% endblock %}
