@@ -15,20 +15,17 @@
   <textarea name="notes">{{ trip.notes if trip else '' }}</textarea>
 
   <h3>行程段（出发→到达 + 出行方式）</h3>
+  <datalist id="city-options">
+    {% for c in cities %}<option value="{{ c.name }}">{% endfor %}
+  </datalist>
   <div id="legs">
     {% for leg in (trip.legs if trip else [None, None]) %}
     <div class="leg-row">
       <input type="hidden" name="leg_seq" value="{{ loop.index }}">
-      <select name="leg_from">
-        <option value="">出发城市</option>
-        {% for c in cities %}<option value="{{ c.id }}"
-          {{ 'selected' if leg and leg.from_city_id==c.id }}>{{ c.name }}</option>{% endfor %}
-      </select>
-      <select name="leg_to">
-        <option value="">到达城市</option>
-        {% for c in cities %}<option value="{{ c.id }}"
-          {{ 'selected' if leg and leg.to_city_id==c.id }}>{{ c.name }}</option>{% endfor %}
-      </select>
+      <input list="city-options" name="leg_from" placeholder="出发城市"
+             value="{{ leg.from_city.name if leg and leg.from_city else '' }}">
+      <input list="city-options" name="leg_to" placeholder="到达城市"
+             value="{{ leg.to_city.name if leg and leg.to_city else '' }}">
       <select name="leg_mode">
         <option value="">方式</option>
         {% for m in modes %}<option {{ 'selected' if leg and leg.transport_mode==m }}>{{ m }}</option>{% endfor %}
@@ -36,7 +33,7 @@
     </div>
     {% endfor %}
   </div>
-  <small>城市不在列表？先到「设置→城市」添加。</small>
+  <small>从下拉里选已有城市，或直接输入新城市名——保存时自动创建并定位坐标。</small>
 
   <h3>币种与汇率（1 人民币 = ? 外币）</h3>
   <div id="currencies">

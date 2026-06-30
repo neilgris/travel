@@ -9,6 +9,7 @@ from app.models.city import City
 from app.models.person import Person
 from app.models.day import (Day, Entry, EntryImage, CATEGORIES,
                             TRANSPORT_MODES, COMMON_CURRENCIES)
+from app.services.geocoding import geocode
 from app.services.stats import trip_stats
 from app.services.uploads import save_upload
 
@@ -17,6 +18,21 @@ bp = Blueprint("trips", __name__, url_prefix="/trips")
 
 def _parse_date(s):
     return dt.datetime.strptime(s, "%Y-%m-%d").date()
+
+
+def _resolve_city(name):
+    """按城市名解析：已存在则复用，否则自动地理编码并新建。空名返回 None。"""
+    name = (name or "").strip()
+    if not name:
+        return None
+    city = City.query.filter_by(name=name).first()
+    if city is None:
+        coords = geocode(name)
+        lat, lon = coords if coords else (None, None)
+        city = City(name=name, latitude=lat, longitude=lon)
+        db.session.add(city)
+        db.session.flush()
+    return city
 
 
 @bp.route("/")
@@ -38,12 +54,14 @@ def _apply_form(trip):
     tos = request.form.getlist("leg_to")
     modes = request.form.getlist("leg_mode")
     for i in range(len(seqs)):
-        if not froms[i] and not tos[i]:
+        from_city = _resolve_city(froms[i])
+        to_city = _resolve_city(tos[i])
+        if from_city is None and to_city is None:
             continue
         trip.legs.append(Leg(
             seq=int(seqs[i] or i + 1),
-            from_city_id=int(froms[i]) if froms[i] else None,
-            to_city_id=int(tos[i]) if tos[i] else None,
+            from_city=from_city,
+            to_city=to_city,
             transport_mode=modes[i] or None))
     # currencies
     trip.currencies = []
