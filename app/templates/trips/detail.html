@@ -3,11 +3,15 @@
 {% block content %}
 <h1>{{ trip.title }}</h1>
 <p>{{ trip.start_date }} ~ {{ trip.end_date }} ·
-   出行：{{ trip.transport_modes | join(' / ') or '—' }} ·
+   出行：{{ trip.transport_modes | map('transport_label') | join(' / ') or '—' }} ·
    总花费 ￥{{ stats.total_cny }}</p>
 <p>同行：{{ trip.people | map(attribute='name') | join('、') or '—' }}
    <a href="{{ url_for('trips.stats_page', trip_id=trip.id) }}">查看统计 →</a>
-   <a href="{{ url_for('trips.edit', trip_id=trip.id) }}">编辑旅程</a></p>
+   <a href="{{ url_for('trips.edit', trip_id=trip.id) }}">编辑旅程</a>
+   <form method="post" action="{{ url_for('trips.delete', trip_id=trip.id) }}"
+         style="display:inline" onsubmit="return confirm('确认删除「{{ trip.title }}」？此操作不可恢复。');">
+     <button type="submit" class="link-danger">删除旅程</button>
+   </form></p>
 {% if trip.notes %}<p>{{ trip.notes }}</p>{% endif %}
 
 <h2>每天记录</h2>

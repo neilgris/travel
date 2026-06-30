@@ -55,10 +55,11 @@ app/
 │   └── day.py         Day / Entry / EntryImage
 ├── services/          业务逻辑（无 HTTP，可独立测试）
 │   ├── geocoding.py   城市坐标地理编码（Nominatim）
+│   ├── exchange.py    实时汇率查询（open.er-api.com）
 │   ├── stats.py       花费换算与单旅程统计
 │   └── uploads.py     图片上传保存
 ├── templates/         Jinja2 模板（trips/ settings/ + base.html）
-└── static/style.css   全站样式
+└── static/            style.css 全站样式 + form.js 旅程表单交互
 run.py                 启动入口
 tests/                 pytest，每个模块对应一个测试文件
 instance/travel.db     SQLite（首次启动自动建，已 gitignore）

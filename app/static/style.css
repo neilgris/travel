@@ -125,14 +125,69 @@ select {
   cursor: pointer;
 }
 
+/* 旅程表单：整体收紧 */
+.trip-form label { margin-top: 0; margin-bottom: 0.25rem; }
+.trip-form h3 { margin: 1rem 0 0.5rem; }
+.trip-form > label { margin-top: 0.7rem; }
+.trip-form small { display: block; margin-top: 0.3rem; }
+.trip-form textarea { min-height: 56px; }
+
+/* 标题 / 开始 / 结束 一行排列 */
+.form-row { display: flex; gap: 0.7rem; flex-wrap: wrap; }
+.form-row .field { flex: 1 1 8rem; min-width: 0; }
+.form-row .field-grow { flex: 2 1 12rem; }
+
+/* 同行人：横向换行紧凑排列 */
+.people-row { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
+.people-row .person-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-weight: 400;
+}
+.people-row .person-check input { width: auto; }
+
 /* 行程段：出发 / 到达 / 方式 一行排列 */
-.leg-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
-.leg-row select { flex: 1; min-width: 0; }
+.leg-row, .cur-row { display: flex; gap: 0.6rem; margin-bottom: 0.6rem; align-items: center; }
+.leg-row input[name="leg_from"],
+.leg-row input[name="leg_to"] { flex: 1 1 0; min-width: 0; }
+.leg-row select[name="leg_mode"] { flex: 0 0 7rem; min-width: 0; }
 
 /* 币种 / 汇率 一行排列，各占一半 */
-#currencies > div { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
-#currencies > div select,
-#currencies > div input { flex: 1 1 0; min-width: 0; }
+.cur-row select,
+.cur-row input { flex: 1 1 0; min-width: 0; }
+
+/* 行内删除按钮 */
+.row-del {
+  flex: 0 0 auto;
+  width: 2rem;
+  padding: 0.5rem 0;
+  background: #fff;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.15s, border-color 0.15s;
+}
+.row-del:hover { color: var(--accent); border-color: var(--accent); }
+
+/* 添加一行的幽灵按钮 */
+.btn-add {
+  width: auto;
+  background: transparent;
+  color: var(--primary-dark);
+  border: 1px dashed var(--primary);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.9rem;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  margin: 0.2rem 0 0.1rem;
+  transition: background 0.15s;
+}
+.btn-add:hover { background: var(--bg); }
 
 /* 同行人勾选项 */
 .card > label > input[type="checkbox"] { margin-right: 0.4rem; }
@@ -226,6 +281,19 @@ select {
   margin: 0;
   border-radius: 50%;
 }
+
+/* 危险操作的文字链按钮（如删除旅程） */
+.link-danger {
+  background: none;
+  border: none;
+  padding: 0;
+  width: auto;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.link-danger:hover { color: var(--accent-dark); }
 
 /* ---- 子导航（设置页 同行人/城市 切换）---- */
 .subnav { display: flex; gap: 0.45rem; margin: 0 0 1rem; }

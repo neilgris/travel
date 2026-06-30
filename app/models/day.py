@@ -4,6 +4,20 @@ from app.extensions import db
 CATEGORIES = ["吃饭", "游玩", "购物", "住宿", "交通"]
 TRANSPORT_MODES = ["飞机", "火车", "游轮", "自驾", "大巴", "步行", "其他"]
 
+# 出行方式对应 emoji（仅用于显示；数据库仍存纯文字）。
+TRANSPORT_MODE_EMOJI = {
+    "飞机": "✈️", "火车": "🚄", "游轮": "🛳️", "自驾": "🚗",
+    "大巴": "🚌", "步行": "🚶", "其他": "🧭",
+}
+
+
+def transport_label(mode):
+    """把出行方式渲染成「emoji 文字」；空值返回空串，未知方式原样返回。"""
+    if not mode:
+        return ""
+    emoji = TRANSPORT_MODE_EMOJI.get(mode)
+    return f"{emoji} {mode}" if emoji else mode
+
 # 常见外币（人民币为默认本币，不在此列）。(代码, 中文名, 国旗)
 COMMON_CURRENCIES = [
     ("JPY", "日元", "🇯🇵"), ("USD", "美元", "🇺🇸"), ("EUR", "欧元", "🇪🇺"),
