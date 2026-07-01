@@ -80,3 +80,44 @@ def test_import_confirm_skips_incomplete_row(client, app):
     assert resp.status_code == 200
     with app.app_context():
         assert Entry.query.filter_by(title="没选日期的记录").count() == 0
+
+
+def make_second_trip_with_day(app):
+    """Create a second trip with one day; return (trip_id, day_id)."""
+    with app.app_context():
+        c = City(name="澳门")
+        t = Trip(title="202602", start_date=dt.date(2026, 2, 1), end_date=dt.date(2026, 2, 2))
+        t.currencies = [TripCurrency(currency_code="HKD", rate=Decimal("1.12"))]
+        db.session.add_all([c, t])
+        db.session.commit()
+        day = Day(trip_id=t.id, date=dt.date(2026, 2, 1), city_id=c.id)
+        db.session.add(day)
+        db.session.commit()
+        return t.id, day.id
+
+
+def test_import_confirm_rejects_cross_trip_day_id(client, app):
+    """Posting a day_id belonging to trip B into trip A's confirm route must be skipped."""
+    tid_a = make_trip_with_days(app)
+    _tid_b, day_id_b = make_second_trip_with_day(app)
+    resp = client.post(f"/trips/{tid_a}/import/confirm", data={
+        "title": "跨旅程记录", "amount": "50.0",
+        "day_id": str(day_id_b), "category": "吃饭", "currency_code": "CNY",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        assert Entry.query.filter_by(title="跨旅程记录").count() == 0
+
+
+def test_import_confirm_skips_malformed_amount(client, app):
+    """A non-numeric amount must be skipped, not crash (no 500)."""
+    tid = make_trip_with_days(app)
+    with app.app_context():
+        day_id = Day.query.filter_by(trip_id=tid, date=dt.date(2026, 1, 20)).one().id
+    resp = client.post(f"/trips/{tid}/import/confirm", data={
+        "title": "金额非法记录", "amount": "abc",
+        "day_id": str(day_id), "category": "吃饭", "currency_code": "CNY",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        assert Entry.query.filter_by(title="金额非法记录").count() == 0

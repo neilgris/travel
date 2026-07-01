@@ -267,13 +267,17 @@ def import_confirm(trip_id):
     currencies_in = request.form.getlist("currency_code")
     count = 0
     for i in range(len(titles)):
-        day_id = int(day_ids[i]) if day_ids[i] else None
+        try:
+            day_id = int(day_ids[i]) if day_ids[i] else None
+            amount = Decimal(amounts[i])
+        except (ValueError, Exception):
+            continue
         category = categories_in[i]
         currency_code = currencies_in[i]
         if day_id not in valid_day_ids or category not in CATEGORIES or currency_code not in valid_currencies:
             continue
         db.session.add(Entry(day_id=day_id, category=category,
-                             title=titles[i][:200], amount=Decimal(amounts[i]),
+                             title=titles[i][:200], amount=amount,
                              currency_code=currency_code))
         count += 1
     db.session.commit()
