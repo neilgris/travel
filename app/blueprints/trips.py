@@ -260,6 +260,9 @@ def import_confirm(trip_id):
     trip = db.get_or_404(Trip, trip_id)
     valid_day_ids = {d.id for d in trip.days}
     valid_currencies = {"CNY"} | {c.currency_code for c in trip.currencies}
+    # 这五个平行列表按行下标对齐：import_review.html 每个待确认行都恰好为每个
+    # 字段名各产出一个表单项（title/amount 恒有；day_id/category/currency_code
+    # 各产出一个 hidden 或一个 select）。若改模板使某字段条件性渲染，会错位到别的条目。
     titles = request.form.getlist("title")
     amounts = request.form.getlist("amount")
     day_ids = request.form.getlist("day_id")

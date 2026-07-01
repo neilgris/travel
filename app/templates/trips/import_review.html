@@ -4,6 +4,8 @@
 <h1>导入待确认</h1>
 <p>以下记录部分字段没能自动匹配，请手动选择后确认导入。</p>
 <form method="post" action="{{ url_for('trips.import_confirm', trip_id=trip.id) }}">
+{# 每行须为 title/amount/day_id/category/currency_code 各产出恰好一个表单项，
+   import_confirm 靠平行 getlist 按下标对齐；勿让任一字段变成条件性渲染。 #}
 {% for row in unmatched %}
 <div class="card">
   <p>{{ row.date }} · {{ row.title }} · {{ row.amount }}</p>
