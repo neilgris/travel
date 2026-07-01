@@ -28,6 +28,8 @@ def parse_rows(file_obj):
     rows = []
     for r in range(1, sheet.nrows):
         values = sheet.row_values(r)
+        if str(values[0]).strip() != "支出":
+            continue
         date_raw = str(values[1]).strip()
         if not date_raw:
             continue

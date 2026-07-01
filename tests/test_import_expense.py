@@ -88,3 +88,15 @@ def test_match_row_declared_foreign_currency_matches(app):
         matched, resolved = match_row(trip, row)
         assert matched is True
         assert resolved["currency_code"] == "JPY"
+
+
+def test_parse_rows_skips_non_expense_rows():
+    content = make_xls_bytes([
+        {"type": "收入", "date": "2026-01-20 10:00:00", "category": "工资",
+         "account": "现金", "amount": 5000.0, "note": "退款"},
+        {"type": "支出", "date": "2026-01-20 11:00:00", "category": "旅游餐饮费",
+         "account": "现金", "amount": 19.0, "note": "南翔馒头店"},
+    ])
+    rows = parse_rows(io.BytesIO(content))
+    assert len(rows) == 1
+    assert rows[0]["title"] == "南翔馒头店"

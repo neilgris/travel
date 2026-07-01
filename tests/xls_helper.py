@@ -14,7 +14,7 @@ def make_xls_bytes(rows, sheet_name="支出"):
     for c, h in enumerate(HEADER):
         sheet.write(0, c, h)
     for r, row in enumerate(rows, start=1):
-        sheet.write(r, 0, "支出")
+        sheet.write(r, 0, row.get("type", "支出"))
         sheet.write(r, 1, row["date"])
         sheet.write(r, 2, row["category"])
         sheet.write(r, 3, row.get("subcategory", ""))
