@@ -42,6 +42,15 @@ def test_add_day_form_defaults_date_to_trip_start(client, app):
     assert 'name="date" required value="2026-01-01"' in html
 
 
+def test_add_day_form_defaults_to_day_after_last(client, app):
+    tid, cid = make_trip(app)  # start_date = 2026-01-01
+    client.post(f"/trips/{tid}/days", data={
+        "date": "2026-01-02", "city_id": str(cid)}, follow_redirects=True)
+    html = client.get(f"/trips/{tid}").get_data(as_text=True)
+    # 已有最后一天 2026-01-02，下次默认应为 2026-01-03
+    assert 'name="date" required value="2026-01-03"' in html
+
+
 def test_add_day_and_entry(client, app):
     tid, cid = make_trip(app)
     client.post(f"/trips/{tid}/days", data={

@@ -127,7 +127,11 @@ def delete(trip_id):
 @bp.route("/<int:trip_id>")
 def detail(trip_id):
     trip = db.get_or_404(Trip, trip_id)
-    return render_template("trips/detail.html", trip=trip,
+    # 「添加一天」日期默认：已有天则取最后一天次日，否则旅程首日。
+    next_day_date = trip.start_date
+    if trip.days:
+        next_day_date = max(d.date for d in trip.days) + dt.timedelta(days=1)
+    return render_template("trips/detail.html", trip=trip, next_day_date=next_day_date,
                            stats=trip_stats(trip), categories=CATEGORIES)
 
 
