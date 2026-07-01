@@ -101,3 +101,45 @@ def test_delete_entry_mismatched_day_returns_404(client, app):
         other_id = other.id
     resp = client.post(f"/trips/{other_id}/days/{did}/entries/{eid}/delete")
     assert resp.status_code == 404
+
+
+def test_edit_entry_updates_fields(client, app):
+    tid, cid = make_trip(app)
+    client.post(f"/trips/{tid}/days", data={"date": "2026-01-01", "city_id": str(cid)})
+    with app.app_context():
+        day = Day.query.filter_by(trip_id=tid).one()
+        did = day.id
+    client.post(f"/trips/{tid}/days/{did}/entries", data={
+        "category": "吃饭", "title": "茶餐厅", "amount": "120", "currency_code": "HKD"})
+    with app.app_context():
+        eid = Entry.query.filter_by(title="茶餐厅").one().id
+    resp = client.post(f"/trips/{tid}/days/{did}/entries/{eid}/edit", data={
+        "category": "购物", "title": "手信店", "amount": "88.5",
+        "currency_code": "CNY", "description": "买手信"}, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        e = db.session.get(Entry, eid)
+        assert e.category == "购物"
+        assert e.title == "手信店"
+        assert str(e.amount) == "88.50"
+        assert e.currency_code == "CNY"
+        assert e.description == "买手信"
+
+
+def test_edit_entry_mismatched_day_returns_404(client, app):
+    tid, cid = make_trip(app)
+    client.post(f"/trips/{tid}/days", data={"date": "2026-01-01", "city_id": str(cid)})
+    with app.app_context():
+        day = Day.query.filter_by(trip_id=tid).one()
+        did = day.id
+    client.post(f"/trips/{tid}/days/{did}/entries", data={
+        "category": "吃饭", "title": "茶餐厅", "amount": "120", "currency_code": "HKD"})
+    with app.app_context():
+        eid = Entry.query.filter_by(title="茶餐厅").one().id
+        other = Trip(title="other", start_date=dt.date(2026, 5, 1), end_date=dt.date(2026, 5, 2))
+        db.session.add(other)
+        db.session.commit()
+        other_id = other.id
+    resp = client.post(f"/trips/{other_id}/days/{did}/entries/{eid}/edit", data={
+        "category": "购物", "title": "x", "amount": "1", "currency_code": "CNY"})
+    assert resp.status_code == 404

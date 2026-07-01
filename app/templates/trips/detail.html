@@ -27,6 +27,25 @@
     {% for img in e.images %}
       <img class="thumb" src="{{ url_for('main.uploads', filename=img.path.split('/')[-1]) }}">
     {% endfor %}
+    <details>
+      <summary>编辑</summary>
+      <form method="post" action="{{ url_for('trips.edit_entry', trip_id=trip.id, day_id=day.id, entry_id=e.id) }}"
+            class="inline-edit">
+        <select name="category">
+          {% for c in categories %}<option {% if c == e.category %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+        <input name="title" value="{{ e.title }}" required>
+        <input name="amount" value="{{ e.amount }}" type="number" step="0.01">
+        <select name="currency_code">
+          <option value="CNY" {% if e.currency_code == "CNY" %}selected{% endif %}>人民币 (CNY)</option>
+          {% for cur in trip.currencies %}
+          <option value="{{ cur.currency_code }}" {% if cur.currency_code == e.currency_code %}selected{% endif %}>{{ cur.currency_code }}</option>
+          {% endfor %}
+        </select>
+        <textarea name="description">{{ e.description or '' }}</textarea>
+        <button class="btn btn-sm" type="submit">保存</button>
+      </form>
+    </details>
     <form method="post" action="{{ url_for('trips.delete_entry', trip_id=trip.id, day_id=day.id, entry_id=e.id) }}"
           style="display:inline" onsubmit="return confirm('确认删除这条记录？此操作不可恢复。');">
       <button type="submit" class="link-danger">删除</button>

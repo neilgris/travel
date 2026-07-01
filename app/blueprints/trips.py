@@ -169,6 +169,24 @@ def add_entry(trip_id, day_id):
     return redirect(url_for("trips.detail", trip_id=trip_id))
 
 
+@bp.route("/<int:trip_id>/days/<int:day_id>/entries/<int:entry_id>/edit", methods=["POST"])
+def edit_entry(trip_id, day_id, entry_id):
+    day = db.get_or_404(Day, day_id)
+    if day.trip_id != trip_id:
+        abort(404)
+    entry = db.get_or_404(Entry, entry_id)
+    if entry.day_id != day_id:
+        abort(404)
+    entry.category = request.form["category"]
+    entry.title = request.form["title"].strip()
+    entry.amount = Decimal(request.form.get("amount") or "0")
+    entry.currency_code = request.form.get("currency_code", "CNY").upper()
+    entry.description = request.form.get("description") or None
+    db.session.commit()
+    flash("已更新记录")
+    return redirect(url_for("trips.detail", trip_id=trip_id))
+
+
 @bp.route("/<int:trip_id>/days/<int:day_id>/entries/<int:entry_id>/delete", methods=["POST"])
 def delete_entry(trip_id, day_id, entry_id):
     day = db.get_or_404(Day, day_id)
