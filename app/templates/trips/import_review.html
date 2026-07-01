@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}导入待确认 · {{ trip.title }}{% endblock %}
+{% block content %}
+<h1>导入待确认</h1>
+<p>以下记录部分字段没能自动匹配，请手动选择后确认导入。</p>
+<form method="post" action="{{ url_for('trips.import_confirm', trip_id=trip.id) }}">
+{% for row in unmatched %}
+<div class="card">
+  <p>{{ row.date }} · {{ row.title }} · {{ row.amount }}</p>
+  <input type="hidden" name="title" value="{{ row.title }}">
+  <input type="hidden" name="amount" value="{{ row.amount }}">
+  {% if row.day_id %}
+  <input type="hidden" name="day_id" value="{{ row.day_id }}">
+  {% else %}
+  <select name="day_id">
+    <option value="">选择日期</option>
+    {% for d in days %}<option value="{{ d.id }}">{{ d.date }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  {% if row.category %}
+  <input type="hidden" name="category" value="{{ row.category }}">
+  {% else %}
+  <select name="category">
+    <option value="">选择分类</option>
+    {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  {% if row.currency_code %}
+  <input type="hidden" name="currency_code" value="{{ row.currency_code }}">
+  {% else %}
+  <select name="currency_code">
+    <option value="CNY">人民币 (CNY)</option>
+    {% for cur in trip.currencies %}
+    <option value="{{ cur.currency_code }}">{{ cur.currency_code }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+</div>
+{% endfor %}
+<button class="btn" type="submit">确认导入</button>
+</form>
+{% endblock %}

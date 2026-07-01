@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}导入记账文件 · {{ trip.title }}{% endblock %}
+{% block content %}
+<h1>导入记账文件</h1>
+<p><a href="{{ url_for('trips.detail', trip_id=trip.id) }}">← 返回旅程详情</a></p>
+<form method="post" enctype="multipart/form-data" class="card">
+  <label>选择 .xls 文件</label>
+  <input type="file" name="file" accept=".xls" required>
+  <button class="btn" type="submit">上传并导入</button>
+</form>
+{% endblock %}

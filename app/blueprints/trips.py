@@ -13,6 +13,7 @@ from app.services.geocoding import geocode
 from app.services.exchange import fetch_rate
 from app.services.stats import trip_stats
 from app.services.uploads import save_upload
+from app.services.import_expense import parse_rows, match_row
 
 bp = Blueprint("trips", __name__, url_prefix="/trips")
 
@@ -219,3 +220,62 @@ def stats_page(trip_id):
                            cat_values_json=cat_values_json,
                            day_labels_json=day_labels_json,
                            day_values_json=day_values_json)
+
+
+@bp.route("/<int:trip_id>/import", methods=["GET", "POST"])
+def import_expenses(trip_id):
+    trip = db.get_or_404(Trip, trip_id)
+    if request.method == "POST":
+        file = request.files.get("file")
+        if not file or not file.filename:
+            flash("请选择要上传的 .xls 文件")
+            return redirect(url_for("trips.import_expenses", trip_id=trip.id))
+        rows = parse_rows(file)
+        unmatched = []
+        matched_count = 0
+        for row in rows:
+            matched, resolved = match_row(trip, row)
+            if matched:
+                db.session.add(Entry(day_id=resolved["day_id"], category=resolved["category"],
+                                     title=resolved["title"], amount=resolved["amount"],
+                                     currency_code=resolved["currency_code"]))
+                matched_count += 1
+            else:
+                unmatched.append(resolved)
+        db.session.commit()
+        msg = f"自动导入 {matched_count} 条"
+        if unmatched:
+            msg += f"，{len(unmatched)} 条待确认"
+        flash(msg)
+        if unmatched:
+            days = sorted(trip.days, key=lambda d: d.date)
+            return render_template("trips/import_review.html", trip=trip,
+                                   unmatched=unmatched, categories=CATEGORIES, days=days)
+        return redirect(url_for("trips.detail", trip_id=trip.id))
+    return render_template("trips/import.html", trip=trip)
+
+
+@bp.route("/<int:trip_id>/import/confirm", methods=["POST"])
+def import_confirm(trip_id):
+    trip = db.get_or_404(Trip, trip_id)
+    valid_day_ids = {d.id for d in trip.days}
+    valid_currencies = {"CNY"} | {c.currency_code for c in trip.currencies}
+    titles = request.form.getlist("title")
+    amounts = request.form.getlist("amount")
+    day_ids = request.form.getlist("day_id")
+    categories_in = request.form.getlist("category")
+    currencies_in = request.form.getlist("currency_code")
+    count = 0
+    for i in range(len(titles)):
+        day_id = int(day_ids[i]) if day_ids[i] else None
+        category = categories_in[i]
+        currency_code = currencies_in[i]
+        if day_id not in valid_day_ids or category not in CATEGORIES or currency_code not in valid_currencies:
+            continue
+        db.session.add(Entry(day_id=day_id, category=category,
+                             title=titles[i][:200], amount=Decimal(amounts[i]),
+                             currency_code=currency_code))
+        count += 1
+    db.session.commit()
+    flash(f"已确认导入 {count} 条")
+    return redirect(url_for("trips.detail", trip_id=trip.id))
