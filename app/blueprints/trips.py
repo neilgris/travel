@@ -1,6 +1,6 @@
 import datetime as dt
 import json
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from flask import (Blueprint, render_template, request, redirect,
                    url_for, flash, current_app, abort)
 from app.extensions import db
@@ -270,7 +270,7 @@ def import_confirm(trip_id):
         try:
             day_id = int(day_ids[i]) if day_ids[i] else None
             amount = Decimal(amounts[i])
-        except (ValueError, Exception):
+        except (ValueError, InvalidOperation):
             continue
         category = categories_in[i]
         currency_code = currencies_in[i]
