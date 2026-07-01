@@ -57,7 +57,8 @@ app/
 │   ├── geocoding.py   城市坐标地理编码（Nominatim）
 │   ├── exchange.py    实时汇率查询（open.er-api.com）
 │   ├── stats.py       花费换算与单旅程统计
-│   └── uploads.py     图片上传保存
+│   ├── uploads.py     图片上传保存
+│   └── import_expense.py  记账 .xls 解析与匹配（导入用）
 ├── templates/         Jinja2 模板（trips/ settings/ + base.html）
 └── static/            style.css 全站样式 + form.js 旅程表单交互
 run.py                 启动入口
