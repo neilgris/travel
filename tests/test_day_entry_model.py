@@ -19,3 +19,8 @@ def test_day_entry_image(session):
     session.add(d); session.commit()
     assert t.days[0].entries[0].images[0].path == "uploads/a.jpg"
     assert t.days[0].city.name == "香港"
+
+
+def test_other_expense_is_a_valid_category():
+    from app.models.day import CATEGORIES
+    assert CATEGORIES == ["吃饭", "游玩", "购物", "住宿", "交通", "其他消费"]

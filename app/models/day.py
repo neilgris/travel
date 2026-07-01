@@ -1,7 +1,7 @@
 import datetime as dt
 from app.extensions import db
 
-CATEGORIES = ["吃饭", "游玩", "购物", "住宿", "交通"]
+CATEGORIES = ["吃饭", "游玩", "购物", "住宿", "交通", "其他消费"]
 TRANSPORT_MODES = ["飞机", "火车", "游轮", "自驾", "大巴", "步行", "其他"]
 
 # 出行方式对应 emoji（仅用于显示；数据库仍存纯文字）。
