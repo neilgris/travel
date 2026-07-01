@@ -169,6 +169,20 @@ def add_entry(trip_id, day_id):
     return redirect(url_for("trips.detail", trip_id=trip_id))
 
 
+@bp.route("/<int:trip_id>/days/<int:day_id>/entries/<int:entry_id>/delete", methods=["POST"])
+def delete_entry(trip_id, day_id, entry_id):
+    day = db.get_or_404(Day, day_id)
+    if day.trip_id != trip_id:
+        abort(404)
+    entry = db.get_or_404(Entry, entry_id)
+    if entry.day_id != day_id:
+        abort(404)
+    db.session.delete(entry)
+    db.session.commit()
+    flash("已删除记录")
+    return redirect(url_for("trips.detail", trip_id=trip_id))
+
+
 @bp.route("/<int:trip_id>/stats")
 def stats_page(trip_id):
     trip = db.get_or_404(Trip, trip_id)
