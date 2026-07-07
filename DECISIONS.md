@@ -147,3 +147,16 @@
 - **顺带补齐 Entry 编辑/删除**：导入是批量操作，一旦分类/币种映射有误此前无法撤销；照搬 D8 同行人/城市的 inline-edit 模式给 Entry 加编辑（分类/标题/金额/币种/描述，不改所属天、不改图片）与删除（级联删其图片记录，不清磁盘文件，与现有做法一致，无引用保护必要，因为没有别的表引用 Entry）。
 
 **注意**：待确认列表的编辑并未做"记住上次选择"之类的便利功能（比如自动把"其他消费"以外的陌生一级分类也记住映射）——不满足 YAGNI，真出现新的记账 App/分类再迭代。
+
+---
+
+## 2026-07-02 · D10：配图从 Entry 移到 Day
+
+**背景**：原本每条消费（Entry）可挂配图（EntryImage）。实际记录时照片是「某天」的，不是某笔花费的，挂在 Entry 上颗粒度过细、录入啰嗦。
+
+**决策**：
+- **配图改挂 Day**：新增 `DayImage(day_id, path)`，`Day.images` 关系（cascade all/delete-orphan）；删除 `Entry.images`。Entry 不再有配图。
+- **上传入口**：①「添加一天」表单可选传多张；②每个日卡片有「+ 添加照片」表单事后追加（路由 `POST /trips/<tid>/days/<did>/images`，校验 day 属于该 trip）。配图缩略图显示在日卡片日记下方。
+- **旧表 `entry_image` 保留不清**：遵循无 migration 策略（`create_all` 只新增 `day_image`，不动旧表）。现有真实数据里 Entry 从未挂过图（导入不含图），故无数据迁移；`entry_image` 成为孤儿表，无害留存。真要清理需手动 drop（私人单机，暂不做）。
+
+**注意**：改结构前先备份 `instance/travel.db`（`instance/travel.db.bak-*`），未清任何 Entry 数据。

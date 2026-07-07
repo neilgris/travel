@@ -24,8 +24,10 @@ Python + Flask + SQLite + Jinja2（服务端渲染）+ Chart.js（图表）。�
 ```
 Trip 旅程 ──1:N── Leg 行程段 (有序: 出发城市→到达城市 + 出行方式)
    │                 └──> City 城市 (复用, 含经纬度)
-   ├──1:N── Day 某天 (日期, 所在城市, 日记) ──1:N── Entry 记录
-   │            └──> City                          (类别/标题/金额/币种/配图)
+   ├──1:N── Day 某天 (日期, 所在城市, 日记)
+   │            ├──1:N── Entry 记录 (类别/标题/金额/币种)
+   │            ├──1:N── DayImage 当天配图
+   │            └──> City
    ├──M:N── Person 同行人 (复用: 姓名, 照片)
    └──1:N── TripCurrency (币种, 汇率: 1人民币=?外币)
 ```
@@ -52,7 +54,7 @@ app/
 │   ├── city.py        City
 │   ├── person.py      Person
 │   ├── trip.py        Trip / Leg / TripCurrency / TripPerson
-│   └── day.py         Day / Entry / EntryImage
+│   └── day.py         Day / Entry / DayImage
 ├── services/          业务逻辑（无 HTTP，可独立测试）
 │   ├── geocoding.py   城市坐标地理编码（Nominatim）
 │   ├── exchange.py    实时汇率查询（open.er-api.com）
