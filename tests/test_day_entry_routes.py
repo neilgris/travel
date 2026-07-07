@@ -3,7 +3,7 @@ from decimal import Decimal
 from app.extensions import db
 from app.models.city import City
 from app.models.trip import Trip, TripCurrency
-from app.models.day import Day, Entry
+from app.models.day import Day, Entry, DayImage
 
 
 def make_trip(app):
@@ -69,6 +69,39 @@ def test_add_day_and_entry(client, app):
         assert str(e.amount) == "120.00" and e.category == "吃饭"
 
 
+def test_add_day_images_attaches_to_day(client, app):
+    import io
+    tid, cid = make_trip(app)
+    client.post(f"/trips/{tid}/days", data={"date": "2026-01-01", "city_id": str(cid)})
+    with app.app_context():
+        did = Day.query.filter_by(trip_id=tid).one().id
+    resp = client.post(
+        f"/trips/{tid}/days/{did}/images",
+        data={"images": (io.BytesIO(b"fakejpeg"), "photo.jpg")},
+        content_type="multipart/form-data", follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        imgs = DayImage.query.filter_by(day_id=did).all()
+        assert len(imgs) == 1
+
+
+def test_add_day_images_mismatched_trip_returns_404(client, app):
+    import io
+    tid, cid = make_trip(app)
+    client.post(f"/trips/{tid}/days", data={"date": "2026-01-01", "city_id": str(cid)})
+    with app.app_context():
+        did = Day.query.filter_by(trip_id=tid).one().id
+        other = Trip(title="other", start_date=dt.date(2026, 5, 1), end_date=dt.date(2026, 5, 2))
+        db.session.add(other)
+        db.session.commit()
+        other_id = other.id
+    resp = client.post(
+        f"/trips/{other_id}/days/{did}/images",
+        data={"images": (io.BytesIO(b"x"), "photo.jpg")},
+        content_type="multipart/form-data")
+    assert resp.status_code == 404
+
+
 def test_delete_entry_removes_it(client, app):
     tid, cid = make_trip(app)
     client.post(f"/trips/{tid}/days", data={"date": "2026-01-01", "city_id": str(cid)})
@@ -124,6 +157,49 @@ def test_edit_entry_updates_fields(client, app):
         assert str(e.amount) == "88.50"
         assert e.currency_code == "CNY"
         assert e.description == "买手信"
+
+
+def test_edit_entry_can_move_to_another_day(client, app):
+    tid, cid = make_trip(app)
+    client.post(f"/trips/{tid}/days", data={"date": "2026-01-01", "city_id": str(cid)})
+    client.post(f"/trips/{tid}/days", data={"date": "2026-01-02", "city_id": str(cid)})
+    with app.app_context():
+        d1 = Day.query.filter_by(trip_id=tid, date=dt.date(2026, 1, 1)).one().id
+        d2 = Day.query.filter_by(trip_id=tid, date=dt.date(2026, 1, 2)).one().id
+    client.post(f"/trips/{tid}/days/{d1}/entries", data={
+        "category": "吃饭", "title": "茶餐厅", "amount": "120", "currency_code": "HKD"})
+    with app.app_context():
+        eid = Entry.query.filter_by(title="茶餐厅").one().id
+    resp = client.post(f"/trips/{tid}/days/{d1}/entries/{eid}/edit", data={
+        "category": "吃饭", "title": "茶餐厅", "amount": "120",
+        "currency_code": "HKD", "new_day_id": str(d2)}, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        assert db.session.get(Entry, eid).day_id == d2
+
+
+def test_edit_entry_ignores_foreign_new_day_id(client, app):
+    tid, cid = make_trip(app)
+    client.post(f"/trips/{tid}/days", data={"date": "2026-01-01", "city_id": str(cid)})
+    with app.app_context():
+        d1 = Day.query.filter_by(trip_id=tid).one().id
+        other = Trip(title="other", start_date=dt.date(2026, 5, 1), end_date=dt.date(2026, 5, 2))
+        db.session.add(other)
+        db.session.commit()
+        other_day = Day(trip_id=other.id, date=dt.date(2026, 5, 1))
+        db.session.add(other_day)
+        db.session.commit()
+        foreign_day_id = other_day.id
+    client.post(f"/trips/{tid}/days/{d1}/entries", data={
+        "category": "吃饭", "title": "茶餐厅", "amount": "120", "currency_code": "HKD"})
+    with app.app_context():
+        eid = Entry.query.filter_by(title="茶餐厅").one().id
+    client.post(f"/trips/{tid}/days/{d1}/entries/{eid}/edit", data={
+        "category": "吃饭", "title": "茶餐厅", "amount": "120",
+        "currency_code": "HKD", "new_day_id": str(foreign_day_id)}, follow_redirects=True)
+    with app.app_context():
+        # 跨旅程的 day_id 被忽略，记录仍留在原来的天。
+        assert db.session.get(Entry, eid).day_id == d1
 
 
 def test_edit_entry_mismatched_day_returns_404(client, app):

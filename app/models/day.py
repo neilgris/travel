@@ -42,6 +42,9 @@ class Day(db.Model):
     city = db.relationship("City")
     entries = db.relationship("Entry", backref="day", order_by="Entry.created_at",
                               cascade="all, delete-orphan")
+    # 配图属于「某天」，不再挂在单条消费上。
+    images = db.relationship("DayImage", backref="day",
+                             cascade="all, delete-orphan")
 
 
 class Entry(db.Model):
@@ -55,12 +58,9 @@ class Entry(db.Model):
     currency_code = db.Column(db.String(10), nullable=False, default="CNY")
     created_at = db.Column(db.DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
-    images = db.relationship("EntryImage", backref="entry",
-                             cascade="all, delete-orphan")
 
-
-class EntryImage(db.Model):
-    __tablename__ = "entry_image"
+class DayImage(db.Model):
+    __tablename__ = "day_image"
     id = db.Column(db.Integer, primary_key=True)
-    entry_id = db.Column(db.ForeignKey("entry.id"), nullable=False)
+    day_id = db.Column(db.ForeignKey("day.id"), nullable=False)
     path = db.Column(db.String(255), nullable=False)

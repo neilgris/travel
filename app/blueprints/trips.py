@@ -7,12 +7,12 @@ from app.extensions import db
 from app.models.trip import Trip, Leg, TripCurrency
 from app.models.city import City
 from app.models.person import Person
-from app.models.day import (Day, Entry, EntryImage, CATEGORIES,
+from app.models.day import (Day, Entry, DayImage, CATEGORIES,
                             TRANSPORT_MODES, COMMON_CURRENCIES)
 from app.services.geocoding import geocode
 from app.services.exchange import fetch_rate
 from app.services.stats import trip_stats
-from app.services.uploads import save_upload
+from app.services.uploads import save_upload, delete_upload
 from app.services.import_expense import parse_rows, match_row
 
 bp = Blueprint("trips", __name__, url_prefix="/trips")
@@ -143,10 +143,45 @@ def add_day(trip_id):
               date=_parse_date(request.form["date"]),
               city_id=int(request.form["city_id"]) if request.form.get("city_id") else None,
               diary=request.form.get("diary") or None)
+    for f in request.files.getlist("images"):
+        rel = save_upload(f, current_app.config["UPLOAD_FOLDER"])
+        if rel:
+            day.images.append(DayImage(path=rel))
     db.session.add(day)
     db.session.commit()
     flash("已添加一天")
     return redirect(url_for("trips.detail", trip_id=trip.id))
+
+
+@bp.route("/<int:trip_id>/days/<int:day_id>/images", methods=["POST"])
+def add_day_images(trip_id, day_id):
+    day = db.get_or_404(Day, day_id)
+    if day.trip_id != trip_id:
+        abort(404)
+    added = 0
+    for f in request.files.getlist("images"):
+        rel = save_upload(f, current_app.config["UPLOAD_FOLDER"])
+        if rel:
+            day.images.append(DayImage(path=rel))
+            added += 1
+    db.session.commit()
+    flash(f"已添加 {added} 张照片" if added else "未选择照片")
+    return redirect(url_for("trips.detail", trip_id=trip_id))
+
+
+@bp.route("/<int:trip_id>/days/<int:day_id>/images/<int:image_id>/delete", methods=["POST"])
+def delete_day_image(trip_id, day_id, image_id):
+    day = db.get_or_404(Day, day_id)
+    if day.trip_id != trip_id:
+        abort(404)
+    img = db.get_or_404(DayImage, image_id)
+    if img.day_id != day_id:
+        abort(404)
+    delete_upload(img.path, current_app.config["UPLOAD_FOLDER"])
+    db.session.delete(img)
+    db.session.commit()
+    flash("已删除照片")
+    return redirect(url_for("trips.detail", trip_id=trip_id))
 
 
 @bp.route("/<int:trip_id>/days/<int:day_id>/entries", methods=["POST"])
@@ -160,10 +195,6 @@ def add_entry(trip_id, day_id):
                   description=request.form.get("description") or None,
                   amount=Decimal(request.form.get("amount") or "0"),
                   currency_code=request.form.get("currency_code", "CNY").upper())
-    for f in request.files.getlist("images"):
-        rel = save_upload(f, current_app.config["UPLOAD_FOLDER"])
-        if rel:
-            entry.images.append(EntryImage(path=rel))
     db.session.add(entry)
     db.session.commit()
     flash("已添加记录")
@@ -183,6 +214,15 @@ def edit_entry(trip_id, day_id, entry_id):
     entry.amount = Decimal(request.form.get("amount") or "0")
     entry.currency_code = request.form.get("currency_code", "CNY").upper()
     entry.description = request.form.get("description") or None
+    # 允许把记录改到本旅程的另一天；非法/跨旅程的 new_day_id 忽略，留在原天。
+    new_day_id = request.form.get("new_day_id")
+    if new_day_id:
+        try:
+            nid = int(new_day_id)
+        except ValueError:
+            nid = None
+        if nid in {d.id for d in day.trip.days}:
+            entry.day_id = nid
     db.session.commit()
     flash("已更新记录")
     return redirect(url_for("trips.detail", trip_id=trip_id))

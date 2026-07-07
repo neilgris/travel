@@ -7,8 +7,8 @@
 {# 每行须为 title/amount/day_id/category/currency_code 各产出恰好一个表单项，
    import_confirm 靠平行 getlist 按下标对齐；勿让任一字段变成条件性渲染。 #}
 {% for row in unmatched %}
-<div class="card">
-  <p>{{ row.date }} · {{ row.title }} · {{ row.amount }}</p>
+<div class="import-row">
+  <span class="import-meta">{{ row.date }} · {{ row.title }} · ￥{{ row.amount }}</span>
   <input type="hidden" name="title" value="{{ row.title }}">
   <input type="hidden" name="amount" value="{{ row.amount }}">
   {% if row.day_id %}
@@ -16,7 +16,7 @@
   {% else %}
   <select name="day_id">
     <option value="">选择日期</option>
-    {% for d in days %}<option value="{{ d.id }}">{{ d.date }}</option>{% endfor %}
+    {% for d in days %}<option value="{{ d.id }}">{{ d.date }}{% if d.city %} · {{ d.city.name }}{% endif %}</option>{% endfor %}
   </select>
   {% endif %}
   {% if row.category %}

@@ -20,18 +20,30 @@
 <div class="card">
   <h3>{{ day.date }} · {{ day.city.name if day.city else '' }}</h3>
   {% if day.diary %}<p><em>{{ day.diary }}</em></p>{% endif %}
-  {% for e in day.entries %}
-  <div class="entry">
-    <strong>[{{ e.category }}] {{ e.title }}</strong>
-    — {{ e.amount }} {{ e.currency_code }}
-    {% if e.description %}<div>{{ e.description }}</div>{% endif %}
-    {% for img in e.images %}
+  {% if day.images %}
+  <div class="day-photos">
+    {% for img in day.images %}
+    <span class="photo-thumb">
       <img class="thumb" src="{{ url_for('main.uploads', filename=img.path.split('/')[-1]) }}">
+      <form method="post" class="photo-del-form"
+            action="{{ url_for('trips.delete_day_image', trip_id=trip.id, day_id=day.id, image_id=img.id) }}"
+            onsubmit="return confirm('删除这张照片？此操作不可恢复。');">
+        <button type="submit" class="photo-del" title="删除照片">×</button>
+      </form>
+    </span>
     {% endfor %}
-    <details>
+  </div>
+  {% endif %}
+  {% for e in day.entries %}
+  <div class="entry-row">
+    <span class="entry-main"><strong>[{{ e.category }}] {{ e.title }}</strong> — {{ e.amount }} {{ e.currency_code }}</span>
+    <details class="entry-edit">
       <summary>编辑</summary>
       <form method="post" action="{{ url_for('trips.edit_entry', trip_id=trip.id, day_id=day.id, entry_id=e.id) }}"
             class="inline-edit">
+        <select name="new_day_id">
+          {% for d in trip.days %}<option value="{{ d.id }}" {% if d.id == e.day_id %}selected{% endif %}>{{ d.date }}{% if d.city %} · {{ d.city.name }}{% endif %}</option>{% endfor %}
+        </select>
         <select name="category">
           {% for c in categories %}<option {% if c == e.category %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select>
@@ -43,7 +55,6 @@
           <option value="{{ cur.currency_code }}" {% if cur.currency_code == e.currency_code %}selected{% endif %}>{{ cur.currency_code }}</option>
           {% endfor %}
         </select>
-        <textarea name="description">{{ e.description or '' }}</textarea>
         <button class="btn btn-sm" type="submit">保存</button>
       </form>
     </details>
@@ -54,7 +65,7 @@
   </div>
   {% endfor %}
   <details><summary>+ 添加记录</summary>
-  <form method="post" enctype="multipart/form-data"
+  <form method="post" class="inline-edit"
         action="{{ url_for('trips.add_entry', trip_id=trip.id, day_id=day.id) }}">
     <select name="category">{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select>
     <input name="title" placeholder="标题" required>
@@ -65,16 +76,20 @@
       <option value="{{ cur.currency_code }}">{{ cur.currency_code }}</option>
       {% endfor %}
     </select>
-    <textarea name="description" placeholder="描述"></textarea>
-    <input type="file" name="images" accept="image/*" multiple>
-    <button class="btn" type="submit">保存记录</button>
+    <button class="btn btn-sm" type="submit">保存</button>
+  </form></details>
+  <details><summary>+ 添加照片</summary>
+  <form method="post" enctype="multipart/form-data"
+        action="{{ url_for('trips.add_day_images', trip_id=trip.id, day_id=day.id) }}">
+    <input type="file" name="images" accept="image/*" multiple required>
+    <button class="btn" type="submit">上传照片</button>
   </form></details>
 </div>
 {% endfor %}
 
 <div class="card">
   <h3>+ 添加一天</h3>
-  <form method="post" action="{{ url_for('trips.add_day', trip_id=trip.id) }}">
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('trips.add_day', trip_id=trip.id) }}">
     <div class="form-row">
       <div class="field">
         <label>日期</label>
@@ -89,6 +104,8 @@
       </div>
     </div>
     <label>日记</label><textarea name="diary"></textarea>
+    <label>照片（选填，可多张）</label>
+    <input type="file" name="images" accept="image/*" multiple>
     <button class="btn" type="submit">添加</button>
   </form>
 </div>
