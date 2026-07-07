@@ -18,7 +18,35 @@
 <h2>每天记录</h2>
 {% for day in trip.days %}
 <div class="card">
-  <h3>{{ day.date }} · {{ day.city.name if day.city else '' }}</h3>
+  <div class="day-head">
+    <h3>{{ day.date }} · {{ day.city.name if day.city else '' }}</h3>
+    <details class="day-edit">
+      <summary>编辑</summary>
+      <form method="post"
+            action="{{ url_for('trips.edit_day', trip_id=trip.id, day_id=day.id) }}">
+        <div class="form-row">
+          <div class="field">
+            <label>日期</label>
+            <input type="date" name="date" value="{{ day.date }}" required>
+          </div>
+          <div class="field">
+            <label>所在城市</label>
+            <select name="city_id">
+              <option value="">—</option>
+              {% for c in trip.cities %}<option value="{{ c.id }}" {% if day.city_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <label>日记</label><textarea name="diary">{{ day.diary or '' }}</textarea>
+        <button class="btn" type="submit">保存</button>
+      </form>
+    </details>
+    <form method="post" style="display:inline"
+          action="{{ url_for('trips.delete_day', trip_id=trip.id, day_id=day.id) }}"
+          onsubmit="return confirm('确认删除这一天？其下所有记录和照片将一并删除，不可恢复。');">
+      <button type="submit" class="link-danger">删除这一天</button>
+    </form>
+  </div>
   {% if day.diary %}<p><em>{{ day.diary }}</em></p>{% endif %}
   {% if day.images %}
   <div class="day-photos">

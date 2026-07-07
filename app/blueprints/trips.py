@@ -153,6 +153,33 @@ def add_day(trip_id):
     return redirect(url_for("trips.detail", trip_id=trip.id))
 
 
+@bp.route("/<int:trip_id>/days/<int:day_id>/edit", methods=["POST"])
+def edit_day(trip_id, day_id):
+    day = db.get_or_404(Day, day_id)
+    if day.trip_id != trip_id:
+        abort(404)
+    day.date = _parse_date(request.form["date"])
+    day.city_id = int(request.form["city_id"]) if request.form.get("city_id") else None
+    day.diary = request.form.get("diary") or None
+    db.session.commit()
+    flash("已更新这一天")
+    return redirect(url_for("trips.detail", trip_id=trip_id))
+
+
+@bp.route("/<int:trip_id>/days/<int:day_id>/delete", methods=["POST"])
+def delete_day(trip_id, day_id):
+    day = db.get_or_404(Day, day_id)
+    if day.trip_id != trip_id:
+        abort(404)
+    # 连带删除当天配图的物理文件（Entry / DayImage 记录由 cascade 清理）。
+    for img in day.images:
+        delete_upload(img.path, current_app.config["UPLOAD_FOLDER"])
+    db.session.delete(day)
+    db.session.commit()
+    flash("已删除这一天")
+    return redirect(url_for("trips.detail", trip_id=trip_id))
+
+
 @bp.route("/<int:trip_id>/days/<int:day_id>/images", methods=["POST"])
 def add_day_images(trip_id, day_id):
     day = db.get_or_404(Day, day_id)

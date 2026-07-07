@@ -358,6 +358,19 @@ select {
 .photo-thumb:hover .photo-del { opacity: 1; }
 .photo-thumb .photo-del:hover { background: var(--accent); }
 
+/* ---- 每一天卡片头部：标题 + 编辑/删除操作同排 ---- */
+.day-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.day-head h3 { flex: 1 1 auto; margin: 0; }
+.day-head summary { font-size: 0.82rem; padding: 0; }
+.day-edit { flex: 0 0 auto; }
+.day-edit[open] { flex-basis: 100%; }
+.day-edit[open] summary { margin-bottom: 0.4rem; }
+
 /* ---- 旅程详情条目：每条一行紧凑排列 ---- */
 .entry-row {
   display: flex;
