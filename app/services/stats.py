@@ -17,14 +17,20 @@ def to_cny(amount, currency_code, rate_map):
     return cny.quantize(TWO, rounding=ROUND_HALF_UP)
 
 
+NO_CITY = "未指定"
+
+
 def trip_stats(trip):
     rate_map = {c.currency_code: Decimal(c.rate) for c in trip.currencies}
     total = Decimal("0.00")
     by_category = {cat: Decimal("0.00") for cat in CATEGORIES}
     by_day = []
     by_currency = {}
+    by_city = {}
+    top_entries = []
     for day in sorted(trip.days, key=lambda d: d.date):
         day_total = Decimal("0.00")
+        city_name = day.city.name if day.city else NO_CITY
         for e in day.entries:
             # Accumulate per-entry rounded CNY so total_cny, by_category, by_day, by_currency stay mutually consistent.
             cny = to_cny(e.amount, e.currency_code, rate_map)
@@ -36,10 +42,32 @@ def trip_stats(trip):
                                   "original": Decimal("0.00"), "cny": Decimal("0.00")})
             cur["original"] += Decimal(e.amount)
             cur["cny"] += cny
+            by_city[city_name] = by_city.get(city_name, Decimal("0.00")) + cny
+            top_entries.append({
+                "title": e.title, "category": e.category, "cny": cny,
+                "date": day.date, "currency_code": e.currency_code,
+                "original": Decimal(e.amount),
+            })
         by_day.append({"date": day.date, "total_cny": day_total})
+
+    # 累计花费：按已排序的 by_day 逐日累加。
+    cumulative = []
+    running = Decimal("0.00")
+    for d in by_day:
+        running += d["total_cny"]
+        cumulative.append({"date": d["date"], "total_cny": running})
+
+    by_city_list = sorted(
+        ({"city": name, "cny": cny} for name, cny in by_city.items()),
+        key=lambda x: x["cny"], reverse=True)
+    top_entries.sort(key=lambda x: x["cny"], reverse=True)
+
     return {
         "total_cny": total,
         "by_category": by_category,
         "by_day": by_day,
         "by_currency": list(by_currency.values()),
+        "by_city": by_city_list,
+        "cumulative": cumulative,
+        "top_entries": top_entries[:10],
     }
