@@ -269,24 +269,35 @@ def delete_entry(trip_id, day_id, entry_id):
     return redirect(url_for("trips.detail", trip_id=trip_id))
 
 
+def _safe_json(obj):
+    # 城市名等是用户自由文本，要进内联 <script>。转义 < > & 防止 </script> 截断/注入，
+    # 同时保留 ensure_ascii=False 让中文可读。数字/固定类别名不受影响。
+    return (json.dumps(obj, ensure_ascii=False)
+            .replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"))
+
+
 @bp.route("/<int:trip_id>/stats")
 def stats_page(trip_id):
     trip = db.get_or_404(Trip, trip_id)
     s = trip_stats(trip)
-    # Chart data below is emitted to an inline <script> via |safe in stats.html — keep it to fixed CATEGORIES names, ISO date strings, and numbers only; never add user free-text here without escaping.
+    # 下面的数据经 |safe 注入内联 <script>；含用户自由文本（城市名）时一律走 _safe_json 转义。
+    # Top 10 消费含标题（自由文本），改在模板里用 Jinja 自动转义渲染，不进 JS。
     cat_labels = [k for k, v in s["by_category"].items() if v > 0]
     cat_values = [float(s["by_category"][k]) for k in cat_labels]
     day_labels = [d["date"].isoformat() for d in s["by_day"]]
     day_values = [float(d["total_cny"]) for d in s["by_day"]]
-    cat_labels_json = json.dumps(cat_labels, ensure_ascii=False)
-    cat_values_json = json.dumps(cat_values)
-    day_labels_json = json.dumps(day_labels, ensure_ascii=False)
-    day_values_json = json.dumps(day_values)
+    cumulative_values = [float(d["total_cny"]) for d in s["cumulative"]]
+    city_labels = [c["city"] for c in s["by_city"]]
+    city_values = [float(c["cny"]) for c in s["by_city"]]
     return render_template("trips/stats.html", trip=trip, stats=s,
-                           cat_labels_json=cat_labels_json,
-                           cat_values_json=cat_values_json,
-                           day_labels_json=day_labels_json,
-                           day_values_json=day_values_json)
+                           cat_labels_json=_safe_json(cat_labels),
+                           cat_values_json=_safe_json(cat_values),
+                           day_labels_json=_safe_json(day_labels),
+                           day_values_json=_safe_json(day_values),
+                           cumulative_values_json=_safe_json(cumulative_values),
+                           city_labels_json=_safe_json(city_labels),
+                           city_values_json=_safe_json(city_values),
+                           total_cny_float=float(s["total_cny"]))
 
 
 @bp.route("/<int:trip_id>/import", methods=["GET", "POST"])

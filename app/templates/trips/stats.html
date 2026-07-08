@@ -1,12 +1,63 @@
 {% extends "base.html" %}
 {% block title %}{{ trip.title }} · 统计{% endblock %}
+{% set cat_colors = {
+  "吃饭": "#e76f51", "游玩": "#2a9d8f", "购物": "#e9c46a",
+  "住宿": "#4a9fc9", "交通": "#9b8cb5", "其他消费": "#b0a99f"} %}
 {% block content %}
 <h1>{{ trip.title }} · 花费统计</h1>
 <p><a href="{{ url_for('trips.detail', trip_id=trip.id) }}">← 返回详情</a></p>
-<p>总花费：<strong>￥{{ stats.total_cny }}</strong></p>
 
-<div class="card"><h3>按类别</h3><canvas id="catChart" height="160"></canvas></div>
-<div class="card"><h3>按天</h3><canvas id="dayChart" height="160"></canvas></div>
+<div class="card stat-total">
+  <span class="stat-total-label">总花费</span>
+  <span class="stat-total-value">￥{{ stats.total_cny }}</span>
+</div>
+
+<div class="stat-grid">
+  <div class="card">
+    <h3>按类别</h3>
+    <div class="donut-wrap">
+      <canvas id="catChart"></canvas>
+      <div class="donut-center">
+        <span class="donut-center-label">总计</span>
+        <span class="donut-center-value">￥{{ stats.total_cny }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>按城市</h3>
+    {% if stats.by_city %}
+    <canvas id="cityChart" height="180"></canvas>
+    {% else %}
+    <p class="muted">暂无数据</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h3>每日花费与累计</h3>
+  <canvas id="dayChart" height="150"></canvas>
+</div>
+
+<div class="card">
+  <h3>最贵的消费 · Top {{ stats.top_entries|length }}</h3>
+  {% if stats.top_entries %}
+  <ol class="top-list">
+    {% for e in stats.top_entries %}
+    <li class="top-item">
+      <span class="top-bar" style="background: {{ cat_colors.get(e.category, '#b0a99f') }}"></span>
+      <span class="top-main">
+        <span class="top-title">{{ e.title }}</span>
+        <span class="top-meta">{{ e.category }} · {{ e.date.isoformat() }}</span>
+      </span>
+      <span class="top-amount">￥{{ '%.2f'|format(e.cny) }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="muted">暂无消费记录</p>
+  {% endif %}
+</div>
 
 <div class="card"><h3>按币种</h3>
 <table>
@@ -17,16 +68,159 @@
 </table></div>
 
 <script>
-new Chart(document.getElementById('catChart'), {
-  type: 'pie',
-  data: { labels: {{ cat_labels_json | safe }},
-          datasets: [{ data: {{ cat_values_json | safe }} }] }
+const CAT_COLORS = {{ cat_colors|tojson }};
+const catLabels = {{ cat_labels_json | safe }};
+const catValues = {{ cat_values_json | safe }};
+const dayLabels = {{ day_labels_json | safe }};
+const dayValues = {{ day_values_json | safe }};
+const cumulativeValues = {{ cumulative_values_json | safe }};
+const cityLabels = {{ city_labels_json | safe }};
+const cityValues = {{ city_values_json | safe }};
+
+const CITY_PALETTE = ['#2a9d8f','#e76f51','#e9c46a','#4a9fc9','#9b8cb5','#f4a261','#8ab17d','#b0a99f'];
+
+// ---- 全局观感 ----
+Chart.defaults.font.family = "system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif";
+Chart.defaults.color = '#55554e';
+Object.assign(Chart.defaults.plugins.tooltip, {
+  backgroundColor: 'rgba(43,43,43,0.92)', padding: 10, cornerRadius: 8,
+  titleFont: { weight: '600' }, displayColors: false, boxPadding: 4,
 });
+
+const fmt = v => '￥' + Number(v).toLocaleString('zh-CN',
+  { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// hex → 朝白色提亮 amt(0..1)
+function tint(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r + (255 - r) * amt);
+  g = Math.round(g + (255 - g) * amt);
+  b = Math.round(b + (255 - b) * amt);
+  return `rgb(${r},${g},${b})`;
+}
+// 环形扇区：内浅外深的径向渐变
+function radialTint(ctx, area, base) {
+  if (!area) return base;
+  const cx = (area.left + area.right) / 2, cy = (area.top + area.bottom) / 2;
+  const r = Math.min(area.right - area.left, area.bottom - area.top) / 2;
+  const g = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r);
+  g.addColorStop(0, tint(base, 0.3));
+  g.addColorStop(1, base);
+  return g;
+}
+// 竖向柱：底浅顶深
+function vBarGradient(ctx, area, base) {
+  if (!area) return base;
+  const g = ctx.createLinearGradient(0, area.bottom, 0, area.top);
+  g.addColorStop(0, tint(base, 0.45));
+  g.addColorStop(1, base);
+  return g;
+}
+// 横向柱：左浅右深
+function hBarGradient(ctx, area, base) {
+  if (!area) return base;
+  const g = ctx.createLinearGradient(area.left, 0, area.right, 0);
+  g.addColorStop(0, tint(base, 0.4));
+  g.addColorStop(1, base);
+  return g;
+}
+// 折线下方渐隐填充
+function lineFill(ctx, area) {
+  if (!area) return 'rgba(231,111,81,0.12)';
+  const g = ctx.createLinearGradient(0, area.top, 0, area.bottom);
+  g.addColorStop(0, 'rgba(231,111,81,0.38)');
+  g.addColorStop(1, 'rgba(231,111,81,0.02)');
+  return g;
+}
+// 只给扇区/柱体加投影（不影响图例文字）
+const softShadow = {
+  id: 'softShadow',
+  beforeDatasetsDraw(c) {
+    const x = c.ctx; x.save();
+    x.shadowColor = 'rgba(0,0,0,0.16)'; x.shadowBlur = 14; x.shadowOffsetY = 5;
+  },
+  afterDatasetsDraw(c) { c.ctx.restore(); },
+};
+
+if (catLabels.length) {
+  const bases = catLabels.map(l => CAT_COLORS[l] || '#b0a99f');
+  new Chart(document.getElementById('catChart'), {
+    type: 'doughnut',
+    data: { labels: catLabels,
+            datasets: [{
+              data: catValues,
+              backgroundColor: c => radialTint(c.chart.ctx, c.chart.chartArea, bases[c.dataIndex]),
+              borderWidth: 2, borderColor: '#fff',
+              hoverOffset: 14, borderRadius: 6, spacing: 2,
+            }] },
+    options: {
+      cutout: '62%',
+      animation: { animateRotate: true, animateScale: true, duration: 900, easing: 'easeOutQuart' },
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true, pointStyle: 'circle' } },
+        tooltip: { callbacks: { label: i => {
+          const total = catValues.reduce((a, b) => a + b, 0);
+          const pct = total ? (i.raw / total * 100).toFixed(1) : 0;
+          return ` ${i.label}  ${fmt(i.raw)}  (${pct}%)`;
+        } } },
+      },
+    },
+    plugins: [softShadow],
+  });
+}
+
+if (cityLabels.length) {
+  new Chart(document.getElementById('cityChart'), {
+    type: 'bar',
+    data: { labels: cityLabels,
+            datasets: [{
+              label: '人民币', data: cityValues,
+              backgroundColor: c => hBarGradient(c.chart.ctx, c.chart.chartArea,
+                CITY_PALETTE[c.dataIndex % CITY_PALETTE.length]),
+              borderRadius: 6, borderSkipped: false, maxBarThickness: 34,
+            }] },
+    options: {
+      indexAxis: 'y',
+      animation: { duration: 800, easing: 'easeOutQuart' },
+      plugins: { legend: { display: false },
+                 tooltip: { callbacks: { label: i => ' ' + fmt(i.raw) } } },
+      scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+                y: { grid: { display: false } } },
+    },
+    plugins: [softShadow],
+  });
+}
+
 new Chart(document.getElementById('dayChart'), {
-  type: 'bar',
-  data: { labels: {{ day_labels_json | safe }},
-          datasets: [{ label: '人民币', data: {{ day_values_json | safe }} }] },
-  options: { scales: { y: { beginAtZero: true } } }
+  data: {
+    labels: dayLabels,
+    datasets: [
+      { type: 'bar', label: '当日', data: dayValues, order: 2,
+        backgroundColor: c => vBarGradient(c.chart.ctx, c.chart.chartArea, '#2a9d8f'),
+        borderRadius: 6, borderSkipped: false, maxBarThickness: 30 },
+      { type: 'line', label: '累计', data: cumulativeValues, order: 1, yAxisID: 'y1',
+        borderColor: '#e76f51', borderWidth: 2.5, tension: 0.4,
+        fill: true, backgroundColor: c => lineFill(c.chart.ctx, c.chart.chartArea),
+        pointRadius: 3, pointBackgroundColor: '#fff', pointBorderColor: '#e76f51',
+        pointBorderWidth: 2, pointHoverRadius: 6 },
+    ],
+  },
+  options: {
+    interaction: { mode: 'index', intersect: false },
+    animation: { duration: 900, easing: 'easeOutQuart' },
+    plugins: {
+      legend: { position: 'bottom', labels: { usePointStyle: true, padding: 14 } },
+      tooltip: { callbacks: { label: i => ` ${i.dataset.label}  ${fmt(i.raw)}` } },
+    },
+    scales: {
+      x: { grid: { display: false } },
+      y: { beginAtZero: true, position: 'left', title: { display: true, text: '当日' },
+           grid: { color: 'rgba(0,0,0,0.05)' } },
+      y1: { beginAtZero: true, position: 'right', title: { display: true, text: '累计' },
+            grid: { drawOnChartArea: false } },
+    },
+  },
 });
 </script>
 {% endblock %}

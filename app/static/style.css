@@ -61,7 +61,7 @@ body {
 .topnav .navlinks a:hover { background: var(--bg); color: var(--primary); }
 
 /* ---- 主容器 ---- */
-.container { max-width: 760px; margin: 1.5rem auto; padding: 0 1.1rem; }
+.container { max-width: 1100px; margin: 1.5rem auto; padding: 0 1.4rem; }
 
 h1 { font-size: 1.45rem; font-weight: 700; margin: 0 0 0.85rem; letter-spacing: 0.2px; }
 h2 { font-size: 1.15rem; font-weight: 700; margin: 1.3rem 0 0.65rem; }
@@ -436,3 +436,65 @@ details[open] summary { margin-bottom: 0.45rem; }
 small { color: var(--muted); font-size: 0.8rem; }
 a { color: var(--primary-dark); }
 canvas { max-width: 100%; }
+
+/* ---- 统计页 ---- */
+.stat-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: #fff;
+  border: none;
+}
+.stat-total-label { font-size: 0.95rem; opacity: 0.9; letter-spacing: 0.05em; }
+.stat-total-value { font-size: 1.9rem; font-weight: 700; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+}
+.stat-grid > .card { margin-bottom: 0; }
+@media (max-width: 640px) {
+  .stat-grid { grid-template-columns: 1fr; }
+}
+
+.donut-wrap { position: relative; }
+.donut-center {
+  position: absolute;
+  top: 44%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+.donut-center-label { font-size: 0.75rem; color: var(--muted); }
+.donut-center-value { font-size: 1.25rem; font-weight: 700; color: var(--text); }
+
+.top-list { list-style: none; margin: 0; padding: 0; counter-reset: top; }
+.top-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.top-item:last-child { border-bottom: none; }
+.top-item:hover { background: var(--bg); }
+.top-bar { flex: 0 0 4px; align-self: stretch; border-radius: 2px; min-height: 2rem; }
+.top-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.top-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.top-meta { font-size: 0.78rem; color: var(--muted); }
+.top-amount { font-weight: 700; color: var(--accent-dark); white-space: nowrap; }
+
+.muted { color: var(--muted); }
