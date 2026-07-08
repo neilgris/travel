@@ -106,16 +106,27 @@
       draw();
     }, { passive: false });
 
-    // 旋转补间（focusView 用）
+    // 视野角半径（弧度）→ 缩放系数：让该范围填满约 80% 半屏，单点/小行程设上限不贴脸。
+    function zoomForRadius(radius) {
+      const half = Math.min(root.clientWidth, root.clientHeight) / 2;
+      const s = 0.8 * half / Math.max(Math.sin(radius), 0.04);   // 需要的 scale
+      return Math.max(ZOOM_MIN, Math.min(4, s / baseScale));     // 折算成系数并封顶
+    }
+
+    // 旋转 + 缩放补间（focusView 用）
     let timer;
-    function rotateTo(target) {
+    function flyTo(target, targetZoom) {
       if (timer) timer.stop();
-      const start = projection.rotate();
-      const ip = d3.interpolate(start, [target[0], target[1], start[2] || 0]);
+      const rStart = projection.rotate();
+      const ip = d3.interpolate(rStart, [target[0], target[1], rStart[2] || 0]);
+      const zStart = zoom, zEnd = targetZoom;
       const t0 = Date.now(), dur = 700;
       timer = d3.timer(() => {
         const t = Math.min(1, (Date.now() - t0) / dur);
-        projection.rotate(ip(d3.easeCubicInOut(t)));
+        const e = d3.easeCubicInOut(t);
+        projection.rotate(ip(e));
+        zoom = zStart + (zEnd - zStart) * e;
+        projection.scale(baseScale * zoom);
         draw();
         if (t >= 1) timer.stop();
       });
@@ -135,12 +146,20 @@
     return {
       setFocus(id) { focusId = id; draw(); },
       focusView(id) {
-        const c = shared.centroidOfTrip(id);
-        if (c) rotateTo([-c.lng, -c.lat]);
+        const v = shared.viewOfTrip(id);
+        if (v) flyTo([-v.lng, -v.lat], zoomForRadius(v.radius));
       },
       initialView() {
-        const c = shared.centroidOfAll();
-        if (c) { projection.rotate([-c.lng, -c.lat]); draw(); }
+        const v = shared.viewOfAll();
+        if (v) {
+          zoom = zoomForRadius(v.radius);
+          projection.rotate([-v.lng, -v.lat]).scale(baseScale * zoom);
+          draw();
+        }
+      },
+      resetView() {
+        const v = shared.viewOfAll();
+        if (v) flyTo([-v.lng, -v.lat], zoomForRadius(v.radius));
       },
       resize() { layout(); draw(); },
       pause() { if (timer) timer.stop(); },

@@ -7,6 +7,9 @@
 (function () {
   window.GLOBE_FACTORY = window.GLOBE_FACTORY || {};
 
+  // 视野角半径（弧度）→ 相机高度：范围越大越拉远，单点/小行程也不至于贴脸。
+  const altFor = (radius) => Math.max(0.35, Math.min(2.4, radius * 1.7 + 0.3));
+
   // Esri World Imagery：免 token 的卫星瓦片（URL 顺序 z/y/x）。
   const ESRI = (x, y, z) =>
     `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
@@ -152,12 +155,16 @@
         });
       },
       focusView(id) {
-        const c = shared.centroidOfTrip(id);
-        if (c) world.pointOfView({ lat: c.lat, lng: c.lng, altitude: 1.8 }, 700);
+        const v = shared.viewOfTrip(id);
+        if (v) world.pointOfView({ lat: v.lat, lng: v.lng, altitude: altFor(v.radius) }, 700);
       },
       initialView() {
-        const c = shared.centroidOfAll();
-        if (c) world.pointOfView({ lat: c.lat, lng: c.lng, altitude: 2.2 }, 0);
+        const v = shared.viewOfAll();
+        if (v) world.pointOfView({ lat: v.lat, lng: v.lng, altitude: altFor(v.radius) }, 0);
+      },
+      resetView() {
+        const v = shared.viewOfAll();
+        if (v) world.pointOfView({ lat: v.lat, lng: v.lng, altitude: altFor(v.radius) }, 700);
       },
       resize() { world.width(root.clientWidth).height(root.clientHeight); },
       pause() { world.pauseAnimation && world.pauseAnimation(); },

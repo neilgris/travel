@@ -57,6 +57,22 @@
       t.arcs.forEach((a) => pts.push(a.from, a.to));
       return centroid(pts);
     },
+    // 一组点的视野范围：中心 + 到最远点的角半径（弧度）。渲染器据此自适应缩放。
+    extentOf(pts) {
+      if (!pts.length) return null;
+      const c = centroid(pts);
+      let radius = 0;
+      pts.forEach((p) => { const a = this.angle(c, p); if (a > radius) radius = a; });
+      return { lat: c.lat, lng: c.lng, radius };
+    },
+    viewOfAll() { return this.extentOf(data.cities); },
+    viewOfTrip(id) {
+      const t = data.trips.find((x) => x.id === id);
+      if (!t || !t.arcs.length) return null;
+      const pts = [];
+      t.arcs.forEach((a) => pts.push(a.from, a.to));
+      return this.extentOf(pts);
+    },
     angle(a, b) {
       const la1 = a.lat * toRad, la2 = b.lat * toRad,
         dLa = (b.lat - a.lat) * toRad, dLo = (b.lng - a.lng) * toRad;
@@ -90,7 +106,10 @@
   document.querySelectorAll(".trip-item").forEach((item) => {
     const id = +item.dataset.trip;
     item.addEventListener("mouseenter", () => setFocus(id, true));
-    item.addEventListener("mouseleave", () => setFocus(null, false));
+    item.addEventListener("mouseleave", () => {
+      setFocus(null, false);
+      if (active && active.resetView) active.resetView();   // 退回全部行程视野
+    });
   });
 
   // ---- 渲染器切换 ----
