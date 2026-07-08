@@ -25,11 +25,12 @@
 
 **旅程配色**：按 Trip 的 `start_date` 升序排列后，用一个固定调色板（约 10 色）循环取色，保证同一 Trip 每次刷新颜色一致。调色板定义在前端。
 
-**渲染库（两种可切换）**：右上角分段开关在两个渲染器间切换，选择记 `localStorage`，默认 Globe.gl。
-- **🌍 写实**：Globe.gl（Three.js/WebGL），蓝色写实地球 + 浮起弧线。
-- **🗺️ 矢量**：D3 正射投影，浅色线框地球（海洋圆 + 经纬网格 + 大陆矢量）+ 扁平弧线（贴球面，无高度），切到此模式时地球区背景转浅色贴合站点。
+**渲染模式（三种可切换）**：右上角分段开关切换，选择记 `localStorage`，默认 🌍 写实。
+- **🌍 写实**：Globe.gl（Three.js/WebGL），单张蓝色写实贴图地球 + 浮起弧线。**离线**。
+- **🛰️ 卫星**：仍是 Globe.gl 渲染器，把球面换成 Esri World Imagery 卫星瓦片（免 token）。自绘 LOD 瓦片图层——按相机高度选 Web Mercator 缩放级、只加载视野附近瓦片、相机一动按级重算，可放大到街道级（z≈14）。**需联网**（唯一联网模式；断网时退化为底图 + 弧线）。内置 `globeTileEngine` 封顶 z≈7 故弃用改自绘。
+- **🗺️ 矢量**：D3 正射投影，浅色线框地球（海洋圆 + 经纬网格 + 大陆矢量）+ 扁平弧线（贴球面，无高度），切到此模式时地球区背景转浅色贴合站点。**离线**。
 
-两个渲染器读**同一份** `build_globe_data()` 数据，编码（按旅程上色 + 交通 emoji）与联动（列表 hover 高亮、hover 信息卡）一致；实现上抽成统一渲染器接口（`setFocus/focusView/initialView/resize/pause/resume`），由 `globe-home.js` 调度。所有库与资源（globe.gl、three、d3、topojson、地球贴图、`land-110m` 地形）**下载到本地** `app/static/vendor/`，不依赖联网 CDN（纯私人本地站，需离线可用）。
+三种模式读**同一份** `build_globe_data()` 数据，编码（按旅程上色 + 交通 emoji）与联动（列表 hover 高亮、hover 信息卡）一致；实现上抽成统一渲染器接口（`setFocus/focusView/initialView/resize/pause/resume`），由 `globe-home.js` 调度（写实/卫星是 `globe-gl.js` 的两个变体）。库与离线资源（globe.gl、three、d3、topojson、地球贴图、`land-110m` 地形）**下载到本地** `app/static/vendor/`；three 以 ESM 引入并挂到 `window.THREE`，让 globe.gl 复用同一实例（卫星瓦片材质需要）。除卫星瓦片外均不依赖联网 CDN（纯私人本地站，尽量离线可用）。
 
 ## 3. 数据流与后端
 
@@ -79,10 +80,10 @@ return render_template("home.html", globe=build_globe_data())
 
 布局：**左地球 + 右旅程列表**（窄屏下上下堆叠）。
 
-JS 分三块：`globe-home.js`（控制器：解析数据、组织共享结构与联动、切换渲染器）+ `globe-gl.js`（Globe.gl 渲染器）+ `globe-d3.js`（D3 渲染器）。
+JS 分三块：`globe-home.js`（控制器：解析数据、组织共享结构与联动、切换渲染器）+ `globe-gl.js`（Globe.gl 渲染器，含写实/卫星两个变体）+ `globe-d3.js`（D3 渲染器）。
 
 **地球区**
-- 右上角渲染器切换开关（🌍 写实 / 🗺️ 矢量）。
+- 右上角渲染器切换开关（🌍 写实 / 🛰️ 卫星 / 🗺️ 矢量）。
 - 每个渲染器把所有旅程的弧线按 trip 颜色画出、城市点、弧线中点 emoji；初始视角自动对准所有城市中心，**不自动旋转**，鼠标拖拽可转。
 - **hover 信息卡**：停在城市点→显示城市名 + 途经的旅程；停在弧线→显示旅程名、日期、这段交通方式。
 
