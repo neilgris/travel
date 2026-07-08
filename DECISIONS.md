@@ -177,3 +177,15 @@
 - **XSS 防护**：城市名/条目标题是用户自由文本。城市名进内联 `<script>` 走 `_safe_json()` 转义 `< > &` 防 `</script>` 截断；Top 10 标题改在模板用 Jinja 自动转义渲染，不进 JS。沿用 `stats.py`/`stats_page` 原有的安全注释约束。
 
 **注意**：本次按作者要求未加后端测试（`trip_stats` 新字段无单测），纯观感/图表无前端测试（项目本就无前端测试）。
+
+## 2026-07-08 · D12：首页改为 3D 地球路线展示（第二版）
+
+**背景**：首页 `/` 原本只是重定向到旅程列表。作者希望首页是一个可转动的地球，默认加载所有旅程，直观看到每段城市路线与所用的大型交通方式。对应设计文档 [docs/specs/2026-07-08-globe-home-design.md](docs/specs/2026-07-08-globe-home-design.md)。
+
+**决策**：
+- **渲染库选 Globe.gl（Three.js/WebGL）** 而非 D3 正射投影：最贴近「真实地球」观感，弧线/拖拽旋转开箱即用。本站为纯私人本地站，故把 `globe.gl.min.js` + `earth-blue-marble.jpg` + `night-sky.png` **下载到 `app/static/vendor/` 离线用**，不依赖联网 CDN。
+- **编码：弧线颜色按「旅程」，交通方式按弧线中点 emoji**。多旅程叠加时优先让「同一趟成团」，交通方式靠 ✈️🚄🛳️… 图标区分（复用 `TRANSPORT_MODE_EMOJI`）。旅程配色按 `start_date` 升序循环取固定调色板，保证颜色稳定。
+- **数据**：新增 `services/globe.py::build_globe_data()` 把所有 Trip 的 Leg 拍平成弧线 + 去重城市点，经 `{{ globe|tojson }}` 内联进 `home.html`，前端 `static/globe.js` 直接读，不另开 XHR 接口。缺经纬度或缺城市的 Leg 跳过并计数，页面底部一行小字提示。
+- **联动**：右侧旅程列表 hover → 地球只亮该趟、其余变淡并旋转对准；列表标题即链接到旅程详情页（地球顺带成为入口）。顶栏品牌链接改指首页。
+
+**注意**：按作者要求，后端 `build_globe_data` 改动很轻，**未走 TDD、无单测**；前端纯展示，靠预览人工核对。`base.html` 新增 `{% block main_class %}` 让地球页满宽脱离 `.container`。

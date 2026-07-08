@@ -47,7 +47,7 @@ app/
 ├── config.py          配置（SECRET_KEY、DB 路径，env 可覆盖）
 ├── extensions.py      db 等扩展实例
 ├── blueprints/        路由层（按功能分蓝图，只管 HTTP）
-│   ├── main.py        首页 / 旅程列表
+│   ├── main.py        首页地球 / uploads 静态
 │   ├── trips.py       旅程 CRUD、详情、统计、记录录入
 │   └── settings.py    同行人 / 城市管理
 ├── models/            数据层（SQLAlchemy 模型，只管数据）
@@ -60,9 +60,10 @@ app/
 │   ├── exchange.py    实时汇率查询（open.er-api.com）
 │   ├── stats.py       花费换算与单旅程统计
 │   ├── uploads.py     图片上传保存
-│   └── import_expense.py  记账 .xls 解析与匹配（导入用）
-├── templates/         Jinja2 模板（trips/ settings/ + base.html）
-└── static/            style.css 全站样式 + form.js 旅程表单交互
+│   ├── import_expense.py  记账 .xls 解析与匹配（导入用）
+│   └── globe.py       首页地球数据（Leg→弧线 + 城市点）
+├── templates/         Jinja2 模板（trips/ settings/ + base.html + home.html 地球页）
+└── static/            style.css + form.js + globe.js；vendor/ 离线 Globe.gl 与地球贴图
 run.py                 启动入口
 tests/                 pytest，每个模块对应一个测试文件
 instance/travel.db     SQLite（首次启动自动建，已 gitignore）
@@ -79,8 +80,8 @@ uploads/               图片（已 gitignore）
 
 ## 版本
 
-- **第一版（当前）**：记录流程 + 单旅程统计；旅程页仅列表概要。
-- **第二版**：旅程首页地图/地球路线展示（用 Leg + City 坐标）。
+- **第一版**：记录流程 + 单旅程统计；旅程页仅列表概要。
+- **第二版（当前）**：首页 3D 地球路线展示（Globe.gl，用 Leg + City 坐标画弧线）。见 [docs/specs/2026-07-08-globe-home-design.md](docs/specs/2026-07-08-globe-home-design.md)。
 
 ## 如何运行
 
