@@ -22,6 +22,8 @@
     root.appendChild(tip);
 
     let focusId = null;
+    let zoom = 1, baseScale = 0;           // 实际 scale = baseScale × zoom
+    const ZOOM_MIN = 0.8, ZOOM_MAX = 8;
     const projection = d3.geoOrthographic().clipAngle(90).precision(0.4);
     const path = d3.geoPath(projection);
 
@@ -32,7 +34,8 @@
     function layout() {
       const w = root.clientWidth, h = root.clientHeight;
       svg.attr("width", w).attr("height", h);
-      projection.translate([w / 2, h / 2]).scale(Math.min(w, h) / 2 - 12);
+      baseScale = Math.min(w, h) / 2 - 12;
+      projection.translate([w / 2, h / 2]).scale(baseScale * zoom);
     }
 
     // 背面隐藏：与当前正对点夹角 > 90° 即不可见
@@ -94,6 +97,14 @@
         projection.rotate([r0[0] + (ev.x - p0[0]) * k, r0[1] - (ev.y - p0[1]) * k]);
         draw();
       }));
+
+    // 滚轮缩放（Globe.gl 内置缩放，D3 手动实现，两者行为对齐）
+    svg.node().addEventListener("wheel", (ev) => {
+      ev.preventDefault();
+      zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom * Math.exp(-ev.deltaY * 0.0015)));
+      projection.scale(baseScale * zoom);
+      draw();
+    }, { passive: false });
 
     // 旋转补间（focusView 用）
     let timer;
