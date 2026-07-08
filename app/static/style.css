@@ -599,3 +599,47 @@ canvas { max-width: 100%; }
   .globe-stage { height: 60vh; }
   .globe-side { border-left: none; border-top: 1px solid var(--border); }
 }
+
+/* ---- 地球渲染器：切换开关 + 画布容器 + D3 矢量样式 ---- */
+.globe-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.globe-stage.light { background: #eaf2f9; }   /* D3 浅色底 */
+
+.render-switch {
+  position: absolute; top: 0.8rem; right: 0.8rem; z-index: 3;
+  display: flex; gap: 2px;
+  padding: 3px;
+  background: rgba(16, 20, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+.globe-stage.light .render-switch {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: var(--border);
+}
+.render-switch button {
+  border: none; background: transparent; cursor: pointer;
+  color: #cdd6e4; font-size: 0.8rem; font-weight: 600;
+  padding: 0.28rem 0.7rem; border-radius: 999px;
+  transition: background 0.15s, color 0.15s;
+}
+.globe-stage.light .render-switch button { color: var(--muted); }
+.render-switch button.on {
+  background: var(--primary); color: #fff;
+}
+
+/* D3 正射投影地球 */
+.d3-globe { display: block; cursor: grab; }
+.d3-globe:active { cursor: grabbing; }
+.d3-globe .sphere { fill: #cfe4f5; }
+.d3-globe .grat { fill: none; stroke: #a9c8e0; stroke-width: 0.6; }
+.d3-globe .land { fill: #bfe0c4; stroke: #7cb890; stroke-width: 0.7; }
+.d3-globe .city { fill: #fff; stroke: #e8792b; stroke-width: 2; }
+.arc-emoji-svg {
+  font-size: 15px; pointer-events: none;
+  transition: opacity 0.2s;
+}
+.d3-tip {
+  position: absolute; z-index: 4; pointer-events: none;
+  max-width: 220px;
+}

@@ -189,3 +189,17 @@
 - **联动**：右侧旅程列表 hover → 地球只亮该趟、其余变淡并旋转对准；列表标题即链接到旅程详情页（地球顺带成为入口）。顶栏品牌链接改指首页。
 
 **注意**：按作者要求，后端 `build_globe_data` 改动很轻，**未走 TDD、无单测**；前端纯展示，靠预览人工核对。`base.html` 新增 `{% block main_class %}` 让地球页满宽脱离 `.container`。
+
+## 2026-07-08 · D13：首页地球增加 D3 矢量渲染器 + 前端切换
+
+**背景**：D12 用 Globe.gl 写实地球上线后，作者想要一个更轻的「矢量线框地球」观感，并能在前端切换。
+
+**决策**：
+- **两个渲染器并存，前端可切**：右上角分段开关（🌍 写实 = Globe.gl / 🗺️ 矢量 = D3 正射投影），选择记 `localStorage`，默认 Globe.gl。
+- **后端零改动**：`build_globe_data()` 产出的数据与渲染库无关，两个渲染器读同一份。
+- **抽统一渲染器接口**：`setFocus / focusView / initialView / resize / pause / resume`。控制器 `globe-home.js` 只管解析数据 + 列表联动 + 调度；`globe-gl.js` / `globe-d3.js` 各自实现接口。列表联动、hover 信息卡两边行为一致。
+- **D3 固有取舍**：正射投影是 2D，弧线**贴球面、扁平无高度**（不像 Globe.gl 浮起），这是选它时就接受的。切到矢量模式时地球区背景转浅色（`.globe-stage.light`）贴合站点清新风。
+- **离线资源**：新增 `d3.min.js`、`topojson-client.min.js`、`land-110m.json`（world-atlas 大陆地形）落地 `static/vendor/`。
+- **实例缓存**：切换时缓存已建渲染器实例并 pause/resume，避免反复新建 WebGL context。
+
+**注意**：同 D12，前端纯展示无自动化测试，靠预览人工核对（已核对：切换持久化、两模式弧线/emoji/城市点、列表联动高亮在两种渲染器下均正常）。

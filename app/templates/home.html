@@ -6,6 +6,10 @@
 <div class="globe-wrap" data-globe='{{ globe | tojson }}'>
   <section class="globe-stage">
     <div id="globe"></div>
+    <div class="render-switch">
+      <button type="button" data-mode="gl">🌍 写实</button>
+      <button type="button" data-mode="d3">🗺️ 矢量</button>
+    </div>
     {% if globe.skipped.count %}
       <div class="globe-skip">{{ globe.skipped.count }} 段路线因城市缺少坐标未显示</div>
     {% endif %}
@@ -38,5 +42,9 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='vendor/globe.gl.min.js') }}"></script>
-<script src="{{ url_for('static', filename='globe.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/d3.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/topojson-client.min.js') }}"></script>
+<script src="{{ url_for('static', filename='globe-gl.js') }}"></script>
+<script src="{{ url_for('static', filename='globe-d3.js') }}"></script>
+<script src="{{ url_for('static', filename='globe-home.js') }}"></script>
 {% endblock %}
