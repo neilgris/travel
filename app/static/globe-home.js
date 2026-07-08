@@ -129,5 +129,5 @@
   window.addEventListener("resize", () => active && active.resize());
 
   const saved = localStorage.getItem(STORE_KEY);
-  activate(saved === "d3" ? "d3" : "gl");
+  activate(["d3", "sat"].includes(saved) ? saved : "gl");
 })();
