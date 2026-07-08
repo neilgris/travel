@@ -18,6 +18,11 @@ def transport_label(mode):
     emoji = TRANSPORT_MODE_EMOJI.get(mode)
     return f"{emoji} {mode}" if emoji else mode
 
+
+def transport_emoji(mode):
+    """只取出行方式的 emoji；空值或未知返回空串。"""
+    return TRANSPORT_MODE_EMOJI.get(mode, "") if mode else ""
+
 # 常见外币（人民币为默认本币，不在此列）。(代码, 中文名, 国旗)
 COMMON_CURRENCIES = [
     ("JPY", "日元", "🇯🇵"), ("USD", "美元", "🇺🇸"), ("EUR", "欧元", "🇪🇺"),

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}旅行地球{% endblock %}
+{% block main_class %}globe-home{% endblock %}
+
+{% block content %}
+<div class="globe-wrap" data-globe='{{ globe | tojson }}'>
+  <section class="globe-stage">
+    <div id="globe"></div>
+    {% if globe.skipped.count %}
+      <div class="globe-skip">{{ globe.skipped.count }} 段路线因城市缺少坐标未显示</div>
+    {% endif %}
+  </section>
+
+  <aside class="globe-side">
+    <div class="side-head">我的旅程</div>
+    <div class="side-list">
+      {% for t in globe.trips %}
+        <a class="trip-item" href="{{ t.url }}" data-trip="{{ t.id }}" style="--c: {{ t.color }}">
+          <span class="ti-dot"></span>
+          <span class="ti-body">
+            <span class="ti-title">{{ t.title }}</span>
+            <span class="ti-meta">{{ t.start_date }} → {{ t.end_date }}</span>
+            {% if t.modes %}
+              <span class="ti-modes">{% for m in t.modes %}{{ m | transport_emoji }}{% endfor %}</span>
+            {% endif %}
+          </span>
+        </a>
+      {% else %}
+        <div class="side-empty">
+          还没有旅程<br>
+          <a href="{{ url_for('trips.create') }}">＋ 创建第一次旅行</a>
+        </div>
+      {% endfor %}
+    </div>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/globe.gl.min.js') }}"></script>
+<script src="{{ url_for('static', filename='globe.js') }}"></script>
+{% endblock %}

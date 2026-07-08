@@ -12,8 +12,9 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     os.makedirs(app.instance_path, exist_ok=True)
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
     db.init_app(app)
-    from .models.day import transport_label
+    from .models.day import transport_label, transport_emoji
     app.jinja_env.filters["transport_label"] = transport_label
+    app.jinja_env.filters["transport_emoji"] = transport_emoji
     from .blueprints import register_blueprints
     register_blueprints(app)
     with app.app_context():

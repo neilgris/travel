@@ -498,3 +498,104 @@ canvas { max-width: 100%; }
 .top-amount { font-weight: 700; color: var(--accent-dark); white-space: nowrap; }
 
 .muted { color: var(--muted); }
+
+/* ===== 首页地球 ===== */
+.globe-home {                 /* 覆盖 base 的 .container：满宽、无外边距 */
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.globe-wrap {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  height: calc(100vh - 52px);   /* 减去顶栏高度 */
+}
+.globe-stage {
+  position: relative;
+  background: #05070f;           /* 贴图加载前的兜底底色 */
+  overflow: hidden;
+}
+#globe { width: 100%; height: 100%; cursor: grab; }
+#globe:active { cursor: grabbing; }
+.globe-skip {
+  position: absolute;
+  left: 1rem; bottom: 0.9rem;
+  font-size: 0.78rem;
+  color: #cdd6e4;
+  background: rgba(10, 14, 24, 0.6);
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
+/* 弧线中点的交通 emoji */
+.arc-emoji {
+  font-size: 17px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+  transition: opacity 0.2s;
+}
+/* Globe.gl hover 卡片 */
+.g-card {
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: 0.82rem; line-height: 1.35;
+  padding: 0.5rem 0.7rem;
+  background: rgba(16, 20, 30, 0.92);
+  color: #eef2f8;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.g-card b { font-size: 0.9rem; }
+.g-card span { color: #aeb9c9; }
+
+/* 右侧旅程列表 */
+.globe-side {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  min-height: 0;
+}
+.side-head {
+  padding: 0.9rem 1.1rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+.side-list { overflow-y: auto; padding: 0.5rem; }
+.trip-item {
+  display: flex; align-items: flex-start; gap: 0.6rem;
+  padding: 0.6rem 0.65rem;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--text);
+  transition: background 0.15s, opacity 0.15s;
+}
+.trip-item:hover { background: var(--bg); }
+.trip-item.focus { background: var(--bg); box-shadow: inset 0 0 0 1px var(--border); }
+.trip-item.dim { opacity: 0.4; }
+.ti-dot {
+  flex: 0 0 10px; height: 10px; margin-top: 6px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 25%, transparent);
+}
+.ti-body { display: flex; flex-direction: column; min-width: 0; }
+.ti-title {
+  font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ti-meta { font-size: 0.78rem; color: var(--muted); }
+.ti-modes { font-size: 0.95rem; letter-spacing: 1px; margin-top: 1px; }
+.side-empty {
+  padding: 2rem 1rem; text-align: center;
+  color: var(--muted); font-size: 0.9rem; line-height: 2;
+}
+.side-empty a { color: var(--primary); font-weight: 600; text-decoration: none; }
+
+@media (max-width: 760px) {
+  .globe-wrap {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .globe-stage { height: 60vh; }
+  .globe-side { border-left: none; border-top: 1px solid var(--border); }
+}

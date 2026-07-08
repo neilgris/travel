@@ -8,14 +8,14 @@
 </head>
 <body>
   <nav class="topnav">
-    <a class="brand" href="{{ url_for('trips.list') }}">✈ 旅行记录</a>
+    <a class="brand" href="{{ url_for('main.index') }}">✈ 旅行记录</a>
     <div class="navlinks">
       <a href="{{ url_for('trips.list') }}">旅程</a>
       <a href="{{ url_for('trips.create') }}">创建</a>
       <a href="{{ url_for('settings.people') }}">设置</a>
     </div>
   </nav>
-  <main class="container">
+  <main class="{% block main_class %}container{% endblock %}">
     {% with messages = get_flashed_messages() %}
       {% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}
     {% endwith %}

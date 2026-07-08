@@ -94,17 +94,9 @@ return render_template("home.html", globe=build_globe_data())
 - **无旅程 / 无任何可画弧线**：地球正常渲染，右侧显示引导。
 - **贴图/库加载失败**：本地文件基本不会失败；若失败，页面至少展示右侧旅程列表（列表不依赖 Globe.gl）。
 
-## 6. 测试（TDD，仅后端 service）
+## 6. 测试
 
-`tests/test_globe.py` 覆盖 `build_globe_data()`：
-- 多旅程 → 每个 trip 有独立稳定颜色、arcs 结构正确、按 start_date 排序。
-- 一段 Leg 城市缺经纬度 → 该段进 `skipped`，不进 arcs。
-- Leg 的 `from_city`/`to_city` 为空 → 跳过。
-- `emoji` 按交通方式正确映射；未知/空交通方式的处理。
-- `cities` 去重且只含被渲染的城市。
-- 无旅程 → 返回空结构不报错。
-
-前端（home.html / globe.js）纯展示逻辑，不写自动化测试（项目无前端测试），靠预览人工核对。
+后端 `build_globe_data()` 逻辑很轻（取数 + 整形），**不走 TDD、不写单测**（本次决定）；靠首页预览人工核对：多旅程配色、缺坐标跳过并提示、emoji 映射、城市去重、空库不报错。前端（home.html / globe.js）纯展示逻辑，同样靠预览核对。
 
 ## 7. 不做（YAGNI）
 
