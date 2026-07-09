@@ -152,15 +152,28 @@
       if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(draw);
     }, { passive: false });
 
-    // 视野角半径（弧度）→ 缩放系数：让该范围填满 fill×短边。
-    // 全部行程默认 0.92（留边）；聚焦单个行程时贴到 1.0（端点恰在画面边缘，放得更满更有"聚焦感"）。
-    // 上限 16、下限贴合小行程（floor 0.02），让默认与 hover 都能明显放大到位。
-    function zoomForRadius(radius, fill) {
-      const half = Math.min(root.clientWidth, root.clientHeight) / 2;
-      const s = (fill || 0.92) * half / Math.max(Math.sin(radius), 0.02);
-      return Math.max(ZOOM_MIN, Math.min(16, s / baseScale));
+    // 自适应缩放：把行程城市的**实际二维包围盒**贴合视口宽高，而非把角半径贴合短边——
+    // 东西向路线（如 北京↔大阪）在宽屏上因此能放得更大，不浪费横向空间。
+    // 做法：以行程中心为正对点、按 zoom=1 投影出各城市像素坐标，取包围盒，
+    // 再算需要多大 zoom 才能让盒子填满 fill×视口（宽高分别算、取较严格者）。上限 16。
+    function zoomForView(v, fill) {
+      const w = root.clientWidth, h = root.clientHeight;
+      const saved = projection.rotate();
+      projection.rotate([-v.lng, -v.lat]).scale(baseScale);
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      v.points.forEach((p) => {
+        const q = projection([p.lng, p.lat]);
+        if (!q) return;
+        if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0];
+        if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1];
+      });
+      projection.rotate(saved).scale(baseScale * zoom);        // 复原
+      const bw = Math.max(x1 - x0, 1), bh = Math.max(y1 - y0, 1);
+      const f = fill || 0.9;
+      const z = Math.min(f * w / bw, f * h / bh);
+      return Math.max(ZOOM_MIN, Math.min(16, z));
     }
-    const FOCUS_FILL = 1.0;
+    const FOCUS_FILL = 0.9;
 
     // 旋转 + 缩放补间（focusView 用）
     let timer;
@@ -197,12 +210,12 @@
       setFocus(id) { focusId = id; draw(); },
       focusView(id) {
         const v = shared.viewOfTrip(id);
-        if (v) flyTo([-v.lng, -v.lat], zoomForRadius(v.radius, FOCUS_FILL));
+        if (v) flyTo([-v.lng, -v.lat], zoomForView(v, FOCUS_FILL));
       },
       initialView() {
         const v = shared.viewOfAll();
         if (v) {
-          zoom = zoomForRadius(v.radius);
+          zoom = zoomForView(v);
           projection.rotate([-v.lng, -v.lat]).scale(baseScale * zoom);
           draw();
           if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(draw);
@@ -210,7 +223,7 @@
       },
       resetView() {
         const v = shared.viewOfAll();
-        if (v) flyTo([-v.lng, -v.lat], zoomForRadius(v.radius));
+        if (v) flyTo([-v.lng, -v.lat], zoomForView(v));
       },
       resize() { layout(); draw(); },
       pause() { if (timer) timer.stop(); },

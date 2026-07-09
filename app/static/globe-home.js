@@ -57,13 +57,14 @@
       t.arcs.forEach((a) => pts.push(a.from, a.to));
       return centroid(pts);
     },
-    // 一组点的视野范围：中心 + 到最远点的角半径（弧度）。渲染器据此自适应缩放。
+    // 一组点的视野范围：中心 + 到最远点的角半径（弧度）+ 原始点集。
+    // 渲染器据此自适应缩放；点集用于按视口宽高比贴合实际二维范围（东西向路线在宽屏能放得更大）。
     extentOf(pts) {
       if (!pts.length) return null;
       const c = centroid(pts);
       let radius = 0;
       pts.forEach((p) => { const a = this.angle(c, p); if (a > radius) radius = a; });
-      return { lat: c.lat, lng: c.lng, radius };
+      return { lat: c.lat, lng: c.lng, radius, points: pts };
     },
     viewOfAll() { return this.extentOf(data.cities); },
     viewOfTrip(id) {
