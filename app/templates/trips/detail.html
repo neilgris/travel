@@ -9,6 +9,10 @@
    <a href="{{ url_for('trips.stats_page', trip_id=trip.id) }}">查看统计 →</a>
    <a href="{{ url_for('trips.import_expenses', trip_id=trip.id) }}">导入记账文件</a>
    <a href="{{ url_for('trips.edit', trip_id=trip.id) }}">编辑旅程</a>
+   <form method="post" action="{{ url_for('trips.clear_expenses', trip_id=trip.id) }}"
+         style="display:inline" onsubmit="return confirm('确认清空「{{ trip.title }}」的全部消费记录？照片和日记会保留，消费记录不可恢复。');">
+     <button type="submit" class="link-danger">清空消费</button>
+   </form>
    <form method="post" action="{{ url_for('trips.delete', trip_id=trip.id) }}"
          style="display:inline" onsubmit="return confirm('确认删除「{{ trip.title }}」？此操作不可恢复。');">
      <button type="submit" class="link-danger">删除旅程</button>
@@ -62,8 +66,10 @@
     {% endfor %}
   </div>
   {% endif %}
+  <div class="entry-list" data-reorder-url="{{ url_for('trips.reorder_entries', trip_id=trip.id, day_id=day.id) }}">
   {% for e in day.entries %}
-  <div class="entry-row">
+  <div class="entry-row" draggable="true" data-entry-id="{{ e.id }}">
+    <span class="drag-handle" title="拖拽调整顺序">⠿</span>
     <span class="entry-main"><strong>[{{ e.category }}] {{ e.title }}</strong> — {{ e.amount }} {{ e.currency_code }}</span>
     <details class="entry-edit">
       <summary>编辑</summary>
@@ -92,6 +98,7 @@
     </form>
   </div>
   {% endfor %}
+  </div>
   <details><summary>+ 添加记录</summary>
   <form method="post" class="inline-edit"
         action="{{ url_for('trips.add_entry', trip_id=trip.id, day_id=day.id) }}">
@@ -137,4 +144,7 @@
     <button class="btn" type="submit">添加</button>
   </form>
 </div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='entry-reorder.js') }}"></script>
 {% endblock %}

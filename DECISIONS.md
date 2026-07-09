@@ -203,3 +203,28 @@
 - **实例缓存**：切换时缓存已建渲染器实例并 pause/resume，避免反复新建 WebGL context。
 
 **注意**：同 D12，前端纯展示无自动化测试，靠预览人工核对（已核对：切换持久化、两模式弧线/emoji/城市点、列表联动高亮在两种渲染器下均正常）。
+
+## 2026-07-08 · D14：每日消费拖拽排序 + 首次「保留数据」的 schema 变更
+
+**背景**：作者要给同一天内的消费记录（Entry）加手动排序，用拖拽调整、异步保存不刷新页面。库里已有 148 条真实 Entry 数据，不能按默认「删库重建」处理。
+
+**决策**：
+- **Entry 新增 `sort_order` 整数列**，relationship 排序改为 `sort_order, created_at`（`created_at` 降为次级）。新增记录排到当天末尾（`max(sort_order)+1`）。
+- **首次做「保留数据」的 schema 变更**：偏离 D6 默认的「改模型删 `instance/travel.db` 重建」。因为已有真实旅行数据，改为**先备份（`travel.db.bak-*`）→ 手动 `ALTER TABLE entry ADD COLUMN sort_order` → 用窗口函数按 `created_at` 回填每天现有顺序**。仍不引入 Alembic（一次性手工够用）。
+- **异步 reorder 接口**：`POST /trips/<id>/days/<day_id>/entries/reorder`，请求体 `{"order": [entry_id,...]}`，校验提交的 id 恰好等于该天全部 Entry（防漏项/串天），按下标写 `sort_order`，返回 JSON。前端 `static/entry-reorder.js` 用原生 HTML5 拖放（不引第三方库，守「极少 JS」约定），拖完 `fetch` 提交、失败弹提示。
+
+**踩坑**：`blueprints/trips.py` 里有个视图函数叫 `list`（`bp.route("/")`），它**遮蔽了内建 `list`**。函数体内 `list(...)` / `isinstance(x, list)` 会拿到这个视图函数而报错——「清空消费」和本次 reorder 都栽过一次。约定：**本文件内不要用内建 `list`**，改用切片 `seq[:]` 或 `[int(x) for x in ...]` 等写法。
+
+**注意**：前端纯展示、后端改动轻，按作者要求**未走 TDD、无单测**；后端已用 test_client 做端到端核对（正常反转/缺项 400/坏载荷 400/错 trip 404/可恢复），前端核对渲染标记（draggable/data-entry-id/脚本引入）齐全。
+
+## 2026-07-08 · D15：首页地球增加卫星模式（深缩放到街道级）
+
+**背景**：写实模式是单张 4K 贴图，放大就糊（无 LOD）。作者要能放大看真实细节，且明确"虽私人但可联网"。见 [docs/specs/2026-07-08-globe-home-design.md](docs/specs/2026-07-08-globe-home-design.md)。
+
+**决策**：
+- **加第三个模式 🛰️ 卫星**（与写实/矢量并列，记 `localStorage`），仍用 Globe.gl 渲染器（`globe-gl.js` 的一个变体），只把球面从贴图换成 **Esri World Imagery 卫星瓦片**（免 token、免费、需署名，联网即用）。是唯一联网模式。
+- **弃用 Globe.gl 内置 `globeTileEngineUrl`**：实测其瓦片层级被 `thresholds` 卡在 z≈4、源码 `if(level>7)` 硬顶 z=7，只到区域尺度。改**自绘 LOD 瓦片图层**：按相机高度 `pointOfView().altitude` 选 Web Mercator 缩放级、只加载视野附近瓦片（经向环绕/纬向截断）、监听 controls `change`（rAF 节流）按级重算 → 可放大到 z≈14 街道级。
+- **three 实例复用**：自绘瓦片要用 globe.gl 内部那份 three 建材质（否则多实例 `instanceof` 冲突）。globe.gl 2.46 是 `window.THREE ? window.THREE : 内置` 的 peer 模式，但 three ≥0.179 只发 ESM。故 `home.html` 用 `import * as THREE` 设 `window.THREE = Object.assign({}, THREE)`（可写副本，避免冻结命名空间被写报错），再按序动态 `load()` globe.gl 等脚本。
+- **瓦片渲染三连坑**：① 瓦片球面片正面朝内 → 材质 `DoubleSide`；② 瓦片与球体同半径被底图 z-fight 盖住 → `tileAltitude(0.02)` 抬成球外壳；③ 底图不透明写深度遮住背面瓦片、兜住间隙 → 形成实心球。
+
+**注意**：纯前端改动，无后端、无测试；三种模式（写实/卫星/矢量）均在预览中人工核对：渲染、深缩放到 z14、切换与联动、外部 three 下写实/矢量不回归。**本条随「清空消费」批次一起提交**（追加时 DECISIONS.md 正被那批占用）。

@@ -45,7 +45,8 @@ class Day(db.Model):
     diary = db.Column(db.Text)
 
     city = db.relationship("City")
-    entries = db.relationship("Entry", backref="day", order_by="Entry.created_at",
+    entries = db.relationship("Entry", backref="day",
+                              order_by="Entry.sort_order, Entry.created_at",
                               cascade="all, delete-orphan")
     # 配图属于「某天」，不再挂在单条消费上。
     images = db.relationship("DayImage", backref="day",
@@ -61,6 +62,8 @@ class Entry(db.Model):
     description = db.Column(db.Text)
     amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     currency_code = db.Column(db.String(10), nullable=False, default="CNY")
+    # 同一天内的显示顺序，支持前端拖拽调整；越小越靠前。
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
 

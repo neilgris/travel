@@ -383,6 +383,16 @@ select {
 }
 .entry-row:last-of-type { border-bottom: none; }
 .entry-row .entry-main { flex: 1 1 auto; min-width: 0; }
+/* 拖拽调整同天顺序 */
+.drag-handle {
+  flex: 0 0 auto;
+  cursor: grab;
+  color: var(--muted, #999);
+  user-select: none;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.entry-row.dragging { opacity: 0.5; }
 .entry-row summary { font-size: 0.82rem; padding: 0; }
 /* 编辑展开时占满整行，让编辑表单单独一行铺开 */
 .entry-edit { flex: 0 0 auto; }

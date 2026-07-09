@@ -125,6 +125,20 @@ def delete(trip_id):
     return redirect(url_for("trips.list"))
 
 
+@bp.route("/<int:trip_id>/entries/clear", methods=["POST"])
+def clear_expenses(trip_id):
+    """清空整个旅程的所有消费记录（各天的 Entry），照片和日记保留。"""
+    trip = db.get_or_404(Trip, trip_id)
+    count = 0
+    for day in trip.days:
+        for entry in day.entries[:]:
+            db.session.delete(entry)
+            count += 1
+    db.session.commit()
+    flash(f"已清空 {count} 条消费记录")
+    return redirect(url_for("trips.detail", trip_id=trip.id))
+
+
 @bp.route("/<int:trip_id>")
 def detail(trip_id):
     trip = db.get_or_404(Trip, trip_id)
@@ -216,12 +230,14 @@ def add_entry(trip_id, day_id):
     day = db.get_or_404(Day, day_id)
     if day.trip_id != trip_id:
         abort(404)
+    next_order = max((e.sort_order for e in day.entries), default=-1) + 1
     entry = Entry(day_id=day.id,
                   category=request.form["category"],
                   title=request.form["title"].strip(),
                   description=request.form.get("description") or None,
                   amount=Decimal(request.form.get("amount") or "0"),
-                  currency_code=request.form.get("currency_code", "CNY").upper())
+                  currency_code=request.form.get("currency_code", "CNY").upper(),
+                  sort_order=next_order)
     db.session.add(entry)
     db.session.commit()
     flash("已添加记录")
@@ -267,6 +283,32 @@ def delete_entry(trip_id, day_id, entry_id):
     db.session.commit()
     flash("已删除记录")
     return redirect(url_for("trips.detail", trip_id=trip_id))
+
+
+@bp.route("/<int:trip_id>/days/<int:day_id>/entries/reorder", methods=["POST"])
+def reorder_entries(trip_id, day_id):
+    """异步调整某天内 Entry 的显示顺序。请求体 JSON: {"order": [entry_id, ...]}。"""
+    day = db.get_or_404(Day, day_id)
+    if day.trip_id != trip_id:
+        abort(404)
+    data = request.get_json(silent=True) or {}
+    raw = data.get("order")
+    # 注意：本文件有个视图函数叫 list（见 bp.route("/")），遮蔽了内建 list，
+    # 故这里不用 isinstance(_, list)，改用 try 迭代来校验载荷。
+    if raw is None or isinstance(raw, (str, bytes, dict)):
+        return {"ok": False, "error": "bad payload"}, 400
+    try:
+        order = [int(x) for x in raw]
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "bad payload"}, 400
+    entries = {e.id: e for e in day.entries}
+    # 提交的 id 必须恰好是本天的全部 Entry，防止漏项/串天导致顺序错乱。
+    if set(order) != set(entries):
+        return {"ok": False, "error": "id mismatch"}, 400
+    for i, eid in enumerate(order):
+        entries[eid].sort_order = i
+    db.session.commit()
+    return {"ok": True}
 
 
 def _safe_json(obj):
