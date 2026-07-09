@@ -20,15 +20,18 @@
 | 层级 | 触发条件 | 绘制内容 | 数据来源 |
 |------|----------|----------|----------|
 | Tier 0（默认/缩小） | `zoom < DETAIL_ZOOM` | 现有海岸线填充 + 经纬网 | 现 `land-110m.json`（不改） |
-| Tier 1（详情/放大） | `zoom ≥ DETAIL_ZOOM` | 精细海岸线填充 + 湖泊 + 河流 + 国界&省/州界 | 新 `land-10m.json` + `lakes-10m.json` + `rivers-10m.json` + `admin1-10m.json` |
+| Tier 1（详情/放大） | `zoom ≥ DETAIL_ZOOM` | 精细海岸线填充 + 湖泊 + 河流 + 国界&省/州界 | 新 `land-50m.json` + `lakes-10m.json` + `rivers-10m.json` + `admin1-10m.json` |
+
+> 海岸线填充选 **50m**（非 10m）：实测逐帧重投影 10m 陆地约 187ms，是拖拽卡顿主因；
+> 50m 海岸线相比 110m 已明显精细，重投影成本却低一个量级。省/州界与河湖仍取自 10m 源数据。
 
 **关键简化**：admin-1 数据用 `topojson.mesh` 画成**一条边界线路（单个 SVG `<path>`）**，
 同时含国界（相邻国家/海陆边）与省/州界——不需要单独的国家边界文件。
 正射投影 `clipAngle(90)` 已自动裁掉背面，无需手动剔除；mesh 是单 path，不是数千个多边形。
 
-Tier 1 生效时，海岸线填充从 `land-110m` 换为 `land-10m`，避免"粗海岸线 + 细省界"的错配。
+Tier 1 生效时，海岸线填充从 `land-110m` 换为 `land-50m`，避免"粗海岸线 + 细省界"的错配。
 
-**Tier 1 内部绘制顺序（自下而上）**：land-10m 填充 → 湖泊填充 → 河流描边 → admin-1 边界 mesh。
+**Tier 1 内部绘制顺序（自下而上）**：land-50m 填充 → 湖泊填充 → 河流描边 → admin-1 边界 mesh。
 湖泊是填充面（水色），河流是折线描边；两者提升"放大看地形"的观感，与省界同档（10m）、同为懒加载。
 
 ## 3. 加载与切换
@@ -46,22 +49,29 @@ Tier 1 生效时，海岸线填充从 `land-110m` 换为 `land-10m`，避免"粗
 
 | 文件 | 来源 | 处理 | 体积（约） |
 |------|------|------|-----------|
-| `land-10m.json` | world-atlas 现成 | 直接入 `vendor/` | ~1.5MB |
-| `admin1-10m.json` | 自然地球 `ne_10m_admin_1_states_provinces` | mapshaper 转 topojson 并**简化**（保留 ~40% 顶点） | 目标 ≤ ~3MB |
-| `lakes-10m.json` | 自然地球 `ne_10m_lakes` | mapshaper 转 topojson（可轻度简化） | ~0.3MB |
-| `rivers-10m.json` | 自然地球 `ne_10m_rivers_lake_centerlines` | mapshaper 转 topojson（可轻度简化） | ~0.4MB |
+| `land-50m.json` | world-atlas 现成 | 直接入 `vendor/` | ~0.5MB |
+| `admin1-10m.json` | 自然地球 `ne_10m_admin_1_states_provinces` | mapshaper `-simplify 12% keep-shapes -filter-fields` → topojson，object `admin1` | ~1.5MB |
+| `lakes-10m.json` | 自然地球 `ne_10m_lakes` | mapshaper `-simplify 25%` 同上，object `lakes` | ~0.4MB |
+| `rivers-10m.json` | 自然地球 `ne_10m_rivers_lake_centerlines` | mapshaper `-simplify 20%` 同上，object `rivers` | ~0.6MB |
 
-- 需联网下载源数据；转换（mapshaper / ogr2ogr）在实现阶段一次性完成，产物入 `app/static/vendor/`。
+- 需联网下载源数据；转换（mapshaper）在实现阶段一次性完成，产物入 `app/static/vendor/`。
 - 仓库现有 vendor 文件是**入库**的（非 gitignore），新文件照此处理。
-- 合计新增 ~4–6MB，均为**懒加载**，仅第一次放大时下载。四个文件一并在跨阈值时拉取。
+- 合计新增 ~3MB，均为**懒加载**，仅第一次放大时下载。四个文件一并在跨阈值时拉取。
 
-## 5. 性能兜底
+## 5. 性能兜底：交互降级（interaction-LOD）
 
-10m mesh 顶点多，拖拽逐帧重绘可能掉帧。两道保险：
+实测：详情态逐帧重投影 land + admin + 河 + 湖约 300ms/帧（约 3fps），拖拽/缩放严重卡顿。
+根因是**几何顶点数**，非自适应采样——调 `projection.precision` 几乎无效（实测 187ms→180ms）。
 
-1. mapshaper **预简化**（第 4 节），降顶点数、压体积。
-2. 必要时拖拽期间调高 `projection.precision`（降采样重绘），松手后恢复精度再画一帧。
-   —— 仅在实测卡顿时启用，不过早优化。
+故采用**交互降级**：`draw(fast)` 增加 `fast` 参数。
+
+- **交互中**（拖拽 `drag`、滚轮 `wheel`、`flyTo` 补间）以 `fast=true` **只画 land-110m 粗轮廓**，
+  跳过全部厚重详情几何——约 7ms/帧，流畅。
+- **交互停止后**再以 `fast=false` 画一次完整详情：拖拽 `end`、滚轮停手 ~180ms（`settleTimer` 去抖）、
+  补间结束、以及首次懒加载 resolve 时各补一帧。
+- 静态观看始终是完整详情；只有正在动的时候临时降为粗轮廓。
+
+配合第 4 节的数据简化（海岸线用 50m、admin/河/湖加大简化），停手补的那一帧 ~80ms，几乎无感。
 
 ## 6. 分层与接口影响
 

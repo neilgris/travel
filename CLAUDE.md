@@ -63,7 +63,7 @@ app/
 │   ├── import_expense.py  记账 .xls 解析与匹配（导入用）
 │   └── globe.py       首页地球数据（Leg→弧线 + 城市点）
 ├── templates/         Jinja2 模板（trips/ settings/ + base.html + home.html 地球页）
-└── static/            style.css + form.js + 地球前端（globe-home 控制器 / globe-gl 写实·卫星 / globe-d3 矢量）；vendor/ 离线 Globe.gl·three·d3·topojson·地球贴图·地形（卫星瓦片走 Esri，联网）
+└── static/            style.css + form.js + 地球前端（globe-home 控制器 / globe-gl 写实·卫星 / globe-d3 矢量）；vendor/ 离线 Globe.gl·three·d3·topojson·地球贴图·地形·矢量详情层（land-50m/admin1/lakes/rivers 放大懒加载；卫星瓦片走 Esri，联网）
 run.py                 启动入口
 tests/                 pytest，每个模块对应一个测试文件
 instance/travel.db     SQLite（首次启动自动建，已 gitignore）
