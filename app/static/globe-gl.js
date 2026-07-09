@@ -9,6 +9,8 @@
 
   // 视野角半径（弧度）→ 相机高度：范围越大越拉远，单点/小行程也不至于贴脸。
   const altFor = (radius) => Math.max(0.35, Math.min(2.4, radius * 1.7 + 0.3));
+  // 聚焦单个行程时用更紧的高度（留边更少），让 hover 放大更明显、即便是跨度大的行程。
+  const focusAltFor = (radius) => Math.max(0.25, Math.min(2.0, radius * 1.4 + 0.12));
 
   // Esri World Imagery：免 token 的卫星瓦片（URL 顺序 z/y/x）。
   const ESRI = (x, y, z) =>
@@ -166,7 +168,7 @@
       },
       focusView(id) {
         const v = shared.viewOfTrip(id);
-        if (v) world.pointOfView({ lat: v.lat, lng: v.lng, altitude: altFor(v.radius) }, 700);
+        if (v) world.pointOfView({ lat: v.lat, lng: v.lng, altitude: focusAltFor(v.radius) }, 700);
       },
       initialView() {
         const v = shared.viewOfAll();

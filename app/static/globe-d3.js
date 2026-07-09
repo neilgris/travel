@@ -90,6 +90,7 @@
 
       gArc.selectAll("path").data(shared.arcs).join("path")
         .attr("stroke", (a) => (focusId && a.tripId !== focusId ? dimc(a.color) : a.color))
+        .attr("stroke-width", (a) => (!focusId ? 2 : a.tripId === focusId ? 3.2 : 1))
         .attr("d", (a) => path({
           type: "LineString",
           coordinates: [[a.from.lng, a.from.lat], [a.to.lng, a.to.lat]],
@@ -151,13 +152,15 @@
       if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(draw);
     }, { passive: false });
 
-    // 视野角半径（弧度）→ 缩放系数：让该范围填满约 92% 短边（贴合坐标区间、尽量大而不裁掉端点）；
-    // 上限放到 16、下限贴合小行程（floor 0.02），让默认与 hover 都能明显放大到位。
-    function zoomForRadius(radius) {
+    // 视野角半径（弧度）→ 缩放系数：让该范围填满 fill×短边。
+    // 全部行程默认 0.92（留边）；聚焦单个行程时贴到 1.0（端点恰在画面边缘，放得更满更有"聚焦感"）。
+    // 上限 16、下限贴合小行程（floor 0.02），让默认与 hover 都能明显放大到位。
+    function zoomForRadius(radius, fill) {
       const half = Math.min(root.clientWidth, root.clientHeight) / 2;
-      const s = 0.92 * half / Math.max(Math.sin(radius), 0.02);  // 需要的 scale
-      return Math.max(ZOOM_MIN, Math.min(16, s / baseScale));    // 折算成系数并封顶
+      const s = (fill || 0.92) * half / Math.max(Math.sin(radius), 0.02);
+      return Math.max(ZOOM_MIN, Math.min(16, s / baseScale));
     }
+    const FOCUS_FILL = 1.0;
 
     // 旋转 + 缩放补间（focusView 用）
     let timer;
@@ -194,7 +197,7 @@
       setFocus(id) { focusId = id; draw(); },
       focusView(id) {
         const v = shared.viewOfTrip(id);
-        if (v) flyTo([-v.lng, -v.lat], zoomForRadius(v.radius));
+        if (v) flyTo([-v.lng, -v.lat], zoomForRadius(v.radius, FOCUS_FILL));
       },
       initialView() {
         const v = shared.viewOfAll();
