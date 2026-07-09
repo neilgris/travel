@@ -644,6 +644,10 @@ canvas { max-width: 100%; }
 .d3-globe .sphere { fill: #cfe4f5; }
 .d3-globe .grat { fill: none; stroke: #a9c8e0; stroke-width: 0.6; }
 .d3-globe .land { fill: #bfe0c4; stroke: #7cb890; stroke-width: 0.7; }
+.d3-globe .land-hi { fill: #bfe0c4; stroke: #7cb890; stroke-width: 0.5; }
+.d3-globe .lake { fill: #cfe4f5; stroke: #a9c8e0; stroke-width: 0.4; }
+.d3-globe .river { fill: none; stroke: #8fb9dd; stroke-width: 0.6; }
+.d3-globe .admin { fill: none; stroke: #7fae8f; stroke-width: 0.5; opacity: 0.75; }
 .d3-globe .city { fill: #fff; stroke: #e8792b; stroke-width: 2; }
 .arc-emoji-svg {
   font-size: 15px; pointer-events: none;

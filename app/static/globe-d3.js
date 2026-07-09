@@ -11,6 +11,9 @@
     const svg = d3.select(root).append("svg").attr("class", "d3-globe");
     const gGrid = svg.append("g");
     const gLand = svg.append("g");
+    const gLake = svg.append("g");
+    const gRiver = svg.append("g").attr("fill", "none");
+    const gAdmin = svg.append("g").attr("fill", "none");
     const gArc = svg.append("g").attr("fill", "none")
       .attr("stroke-linecap", "round").attr("stroke-width", 2);
     const gCity = svg.append("g");
@@ -24,6 +27,7 @@
     let focusId = null;
     let zoom = 1, baseScale = 0;           // 实际 scale = baseScale × zoom
     const ZOOM_MIN = 0.8, ZOOM_MAX = 8;
+    const DETAIL_ZOOM = 2.5;               // 越过此缩放即绘制详情层
     const projection = d3.geoOrthographic().clipAngle(90).precision(0.4);
     const path = d3.geoPath(projection);
 
@@ -50,7 +54,18 @@
         (e) => e.append("path").attr("class", "sphere")).attr("d", path);
       gGrid.selectAll("path.grat").data([graticule]).join(
         (e) => e.append("path").attr("class", "grat")).attr("d", path);
-      gLand.selectAll("path").data([land]).join("path").attr("class", "land").attr("d", path);
+      // 缩小走粗轮廓 land-110m；放大且详情已就绪则换精细海岸线 + 湖 + 河 + 国界/省界。
+      const detail = zoom >= DETAIL_ZOOM && shared.landHi;
+      gLand.selectAll("path.land").data(detail ? [] : [land]).join("path")
+        .attr("class", "land").attr("d", path);
+      gLand.selectAll("path.land-hi").data(detail ? [shared.landHi] : []).join(
+        (e) => e.append("path").attr("class", "land-hi")).attr("d", path);
+      gLake.selectAll("path").data(detail ? [shared.lakes] : []).join("path")
+        .attr("class", "lake").attr("d", path);
+      gRiver.selectAll("path").data(detail ? [shared.rivers] : []).join("path")
+        .attr("class", "river").attr("d", path);
+      gAdmin.selectAll("path").data(detail ? [shared.admin1] : []).join("path")
+        .attr("class", "admin").attr("d", path);
 
       gArc.selectAll("path").data(shared.arcs).join("path")
         .attr("stroke", (a) => (focusId && a.tripId !== focusId ? dimc(a.color) : a.color))
@@ -104,6 +119,7 @@
       zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom * Math.exp(-ev.deltaY * 0.0015)));
       projection.scale(baseScale * zoom);
       draw();
+      if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(draw);
     }, { passive: false });
 
     // 视野角半径（弧度）→ 缩放系数：让该范围填满约 80% 半屏，单点/小行程设上限不贴脸。
@@ -117,6 +133,7 @@
     let timer;
     function flyTo(target, targetZoom) {
       if (timer) timer.stop();
+      if (targetZoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(draw);
       const rStart = projection.rotate();
       const ip = d3.interpolate(rStart, [target[0], target[1], rStart[2] || 0]);
       const zStart = zoom, zEnd = targetZoom;
