@@ -97,6 +97,15 @@
     loadDetail() {
       if (this._detail) return this._detail;
       const get = (f) => fetch(STATIC + f).then((r) => r.json());
+      // 修正绕向：个别多边形环序反了，在正射投影里会「填满整个半球」（球面面积 > 2π）。
+      // 逐要素检测，反了就翻转各环坐标顺序，避免湖泊/陆地盖住整张图。
+      const fixWinding = (f) => {
+        if (d3.geoArea(f) <= 2 * Math.PI) return f;
+        const g = f.geometry;
+        if (g.type === "Polygon") g.coordinates = g.coordinates.map((r) => r.slice().reverse());
+        else if (g.type === "MultiPolygon") g.coordinates = g.coordinates.map((p) => p.map((r) => r.slice().reverse()));
+        return f;
+      };
       this._detail = Promise.all([
         get("land-50m.json"), get("admin1-10m.json"),
         get("lakes-10m.json"), get("rivers-10m.json"),
@@ -104,7 +113,7 @@
         // land 的 objects.land 是 GeometryCollection，取出其中单个 MultiPolygon，
         // 再按大陆/岛屿拆成一堆 Polygon 要素以便逐块裁剪
         const mp = topojson.feature(land, land.objects.land).features[0].geometry;
-        this.landHi = mp.coordinates.map((coords) => ({
+        this.landHi = mp.coordinates.map((coords) => fixWinding({
           type: "Feature", geometry: { type: "Polygon", coordinates: coords },
         }));
         // admin 取相邻共享边（国界+省界）网，拆成一条条线段
@@ -112,7 +121,7 @@
         this.admin1 = mesh.coordinates.map((line) => ({
           type: "Feature", geometry: { type: "LineString", coordinates: line },
         }));
-        this.lakes = topojson.feature(lakes, lakes.objects.lakes).features;
+        this.lakes = topojson.feature(lakes, lakes.objects.lakes).features.map(fixWinding);
         this.rivers = topojson.feature(rivers, rivers.objects.rivers).features;
       });
       return this._detail;
