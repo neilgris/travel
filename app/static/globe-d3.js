@@ -26,10 +26,29 @@
 
     let focusId = null;
     let zoom = 1, baseScale = 0;           // 实际 scale = baseScale × zoom
-    const ZOOM_MIN = 0.8, ZOOM_MAX = 8;
+    const ZOOM_MIN = 0.8, ZOOM_MAX = 50;   // 上限放宽，可持续放大到省/市级
     const DETAIL_ZOOM = 2.5;               // 越过此缩放即绘制详情层
     const projection = d3.geoOrthographic().clipAngle(90).precision(0.4);
     const path = d3.geoPath(projection);
+
+    // 视口裁剪：为每个要素缓存球面外接（中心 + 角半径），逐帧只画落在视口附近的。
+    // 深放大时可见要素骤减 → 详情层始终可见且随缩放变快。
+    function meta(f) {
+      if (!f._c) {
+        const b = d3.geoBounds(f);                 // [[w,s],[e,n]]
+        if (b[1][0] < b[0][0]) { f._c = [0, (b[0][1] + b[1][1]) / 2]; f._r = Math.PI; }
+        else { f._c = [(b[0][0] + b[1][0]) / 2, (b[0][1] + b[1][1]) / 2]; f._r = d3.geoDistance(b[0], b[1]) / 2 + 0.002; }
+      }
+      return f;
+    }
+    // 返回「是否在视口内」判定函数：视口角半径 = asin(半对角 / scale)，缩小时封顶到半球。
+    function visibleFilter() {
+      const r = projection.rotate();
+      const center = [-r[0], -r[1]];
+      const half = Math.hypot(root.clientWidth / 2, root.clientHeight / 2);
+      const cap = Math.asin(Math.min(1, half / projection.scale())) + 0.05;
+      return (f) => d3.geoDistance(center, meta(f)._c) < cap + f._r;
+    }
 
     // 初始对准所有城市中心
     const c0 = shared.centroidOfAll();
@@ -49,24 +68,23 @@
     }
     const dimc = (hex) => hex + "40";
 
-    // fast=true：交互中（拖拽/缩放/补间）只画粗轮廓，避免逐帧重投影厚重详情几何卡顿；
-    // 交互停止后再以 fast=false 画一次完整详情（详见性能兜底注释）。
-    function draw(fast) {
+    function draw() {
       gGrid.selectAll("path.sphere").data([sphere]).join(
         (e) => e.append("path").attr("class", "sphere")).attr("d", path);
       gGrid.selectAll("path.grat").data([graticule]).join(
         (e) => e.append("path").attr("class", "grat")).attr("d", path);
-      // 缩小走粗轮廓 land-110m；放大且详情已就绪且非交互中则换精细海岸线 + 湖 + 河 + 国界/省界。
-      const detail = !fast && zoom >= DETAIL_ZOOM && shared.landHi;
+      // 缩小走粗轮廓 land-110m；放大且详情已就绪则换精细海岸线 + 湖 + 河 + 国界/省界（逐要素裁剪）。
+      const detail = zoom >= DETAIL_ZOOM && shared.landHi;
+      const keep = detail ? visibleFilter() : null;
       gLand.selectAll("path.land").data(detail ? [] : [land]).join("path")
         .attr("class", "land").attr("d", path);
-      gLand.selectAll("path.land-hi").data(detail ? [shared.landHi] : []).join(
-        (e) => e.append("path").attr("class", "land-hi")).attr("d", path);
-      gLake.selectAll("path").data(detail ? [shared.lakes] : []).join("path")
+      gLand.selectAll("path.land-hi").data(detail ? shared.landHi.filter(keep) : []).join("path")
+        .attr("class", "land-hi").attr("d", path);
+      gLake.selectAll("path").data(detail ? shared.lakes.filter(keep) : []).join("path")
         .attr("class", "lake").attr("d", path);
-      gRiver.selectAll("path").data(detail ? [shared.rivers] : []).join("path")
+      gRiver.selectAll("path").data(detail ? shared.rivers.filter(keep) : []).join("path")
         .attr("class", "river").attr("d", path);
-      gAdmin.selectAll("path").data(detail ? [shared.admin1] : []).join("path")
+      gAdmin.selectAll("path").data(detail ? shared.admin1.filter(keep) : []).join("path")
         .attr("class", "admin").attr("d", path);
 
       gArc.selectAll("path").data(shared.arcs).join("path")
@@ -105,27 +123,23 @@
       return d3.geoInterpolate([a.lng, a.lat], [b.lng, b.lat])(0.5);
     }
 
-    // 拖拽旋转：拖动中画粗轮廓（快），松手补一帧详情。
-    let r0, p0, settleTimer;
+    // 拖拽旋转（详情随视口裁剪，逐帧直接画）
+    let r0, p0;
     svg.call(d3.drag()
       .on("start", (ev) => { p0 = [ev.x, ev.y]; r0 = projection.rotate(); })
       .on("drag", (ev) => {
         const k = 70 / projection.scale();
         projection.rotate([r0[0] + (ev.x - p0[0]) * k, r0[1] - (ev.y - p0[1]) * k]);
-        draw(true);
-      })
-      .on("end", () => draw(false)));
+        draw();
+      }));
 
-    // 滚轮缩放（Globe.gl 内置缩放，D3 手动实现，两者行为对齐）：
-    // 缩放中画粗轮廓，停手 ~180ms 后补一帧详情。
+    // 滚轮缩放（Globe.gl 内置缩放，D3 手动实现，两者行为对齐）
     svg.node().addEventListener("wheel", (ev) => {
       ev.preventDefault();
       zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom * Math.exp(-ev.deltaY * 0.0015)));
       projection.scale(baseScale * zoom);
-      draw(true);
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(() => draw(false), 180);
-      if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(() => draw(false));
+      draw();
+      if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(draw);
     }, { passive: false });
 
     // 视野角半径（弧度）→ 缩放系数：让该范围填满约 80% 半屏，单点/小行程设上限不贴脸。
@@ -139,7 +153,7 @@
     let timer;
     function flyTo(target, targetZoom) {
       if (timer) timer.stop();
-      if (targetZoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(() => draw(false));
+      if (targetZoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(draw);
       const rStart = projection.rotate();
       const ip = d3.interpolate(rStart, [target[0], target[1], rStart[2] || 0]);
       const zStart = zoom, zEnd = targetZoom;
@@ -150,7 +164,7 @@
         projection.rotate(ip(e));
         zoom = zStart + (zEnd - zStart) * e;
         projection.scale(baseScale * zoom);
-        draw(t < 1);
+        draw();
         if (t >= 1) timer.stop();
       });
     }
@@ -178,7 +192,7 @@
           zoom = zoomForRadius(v.radius);
           projection.rotate([-v.lng, -v.lat]).scale(baseScale * zoom);
           draw();
-          if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(() => draw(false));
+          if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(draw);
         }
       },
       resetView() {

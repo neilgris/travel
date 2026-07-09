@@ -91,7 +91,9 @@
     },
     onHover(id) { setFocus(id, false); },
 
-    // 详情层懒加载：首次调用拉四份 10m 数据并转几何，之后复用同一 Promise。
+    // 详情层懒加载：首次调用拉四份数据并拆成「可裁剪的要素数组」，之后复用同一 Promise。
+    // 拆分理由：渲染器按视口逐要素裁剪，故 land 拆成多个多边形、admin 边界网拆成线段，
+    // 每份都成为可单独判定是否在视口内的要素列表。
     loadDetail() {
       if (this._detail) return this._detail;
       const get = (f) => fetch(STATIC + f).then((r) => r.json());
@@ -99,10 +101,19 @@
         get("land-50m.json"), get("admin1-10m.json"),
         get("lakes-10m.json"), get("rivers-10m.json"),
       ]).then(([land, adm, lakes, rivers]) => {
-        this.landHi = topojson.feature(land, land.objects.land);
-        this.admin1 = topojson.mesh(adm, adm.objects.admin1, (a, b) => a !== b);
-        this.lakes = topojson.feature(lakes, lakes.objects.lakes);
-        this.rivers = topojson.feature(rivers, rivers.objects.rivers);
+        // land 的 objects.land 是 GeometryCollection，取出其中单个 MultiPolygon，
+        // 再按大陆/岛屿拆成一堆 Polygon 要素以便逐块裁剪
+        const mp = topojson.feature(land, land.objects.land).features[0].geometry;
+        this.landHi = mp.coordinates.map((coords) => ({
+          type: "Feature", geometry: { type: "Polygon", coordinates: coords },
+        }));
+        // admin 取相邻共享边（国界+省界）网，拆成一条条线段
+        const mesh = topojson.mesh(adm, adm.objects.admin1, (a, b) => a !== b);
+        this.admin1 = mesh.coordinates.map((line) => ({
+          type: "Feature", geometry: { type: "LineString", coordinates: line },
+        }));
+        this.lakes = topojson.feature(lakes, lakes.objects.lakes).features;
+        this.rivers = topojson.feature(rivers, rivers.objects.rivers).features;
       });
       return this._detail;
     },
