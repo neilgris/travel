@@ -96,7 +96,7 @@
       if (this._detail) return this._detail;
       const get = (f) => fetch(STATIC + f).then((r) => r.json());
       this._detail = Promise.all([
-        get("land-10m.json"), get("admin1-10m.json"),
+        get("land-50m.json"), get("admin1-10m.json"),
         get("lakes-10m.json"), get("rivers-10m.json"),
       ]).then(([land, adm, lakes, rivers]) => {
         this.landHi = topojson.feature(land, land.objects.land);

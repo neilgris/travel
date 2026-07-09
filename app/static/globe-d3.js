@@ -49,13 +49,15 @@
     }
     const dimc = (hex) => hex + "40";
 
-    function draw() {
+    // fast=true：交互中（拖拽/缩放/补间）只画粗轮廓，避免逐帧重投影厚重详情几何卡顿；
+    // 交互停止后再以 fast=false 画一次完整详情（详见性能兜底注释）。
+    function draw(fast) {
       gGrid.selectAll("path.sphere").data([sphere]).join(
         (e) => e.append("path").attr("class", "sphere")).attr("d", path);
       gGrid.selectAll("path.grat").data([graticule]).join(
         (e) => e.append("path").attr("class", "grat")).attr("d", path);
-      // 缩小走粗轮廓 land-110m；放大且详情已就绪则换精细海岸线 + 湖 + 河 + 国界/省界。
-      const detail = zoom >= DETAIL_ZOOM && shared.landHi;
+      // 缩小走粗轮廓 land-110m；放大且详情已就绪且非交互中则换精细海岸线 + 湖 + 河 + 国界/省界。
+      const detail = !fast && zoom >= DETAIL_ZOOM && shared.landHi;
       gLand.selectAll("path.land").data(detail ? [] : [land]).join("path")
         .attr("class", "land").attr("d", path);
       gLand.selectAll("path.land-hi").data(detail ? [shared.landHi] : []).join(
@@ -103,23 +105,27 @@
       return d3.geoInterpolate([a.lng, a.lat], [b.lng, b.lat])(0.5);
     }
 
-    // 拖拽旋转
-    let r0, p0;
+    // 拖拽旋转：拖动中画粗轮廓（快），松手补一帧详情。
+    let r0, p0, settleTimer;
     svg.call(d3.drag()
       .on("start", (ev) => { p0 = [ev.x, ev.y]; r0 = projection.rotate(); })
       .on("drag", (ev) => {
         const k = 70 / projection.scale();
         projection.rotate([r0[0] + (ev.x - p0[0]) * k, r0[1] - (ev.y - p0[1]) * k]);
-        draw();
-      }));
+        draw(true);
+      })
+      .on("end", () => draw(false)));
 
-    // 滚轮缩放（Globe.gl 内置缩放，D3 手动实现，两者行为对齐）
+    // 滚轮缩放（Globe.gl 内置缩放，D3 手动实现，两者行为对齐）：
+    // 缩放中画粗轮廓，停手 ~180ms 后补一帧详情。
     svg.node().addEventListener("wheel", (ev) => {
       ev.preventDefault();
       zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom * Math.exp(-ev.deltaY * 0.0015)));
       projection.scale(baseScale * zoom);
-      draw();
-      if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(draw);
+      draw(true);
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => draw(false), 180);
+      if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(() => draw(false));
     }, { passive: false });
 
     // 视野角半径（弧度）→ 缩放系数：让该范围填满约 80% 半屏，单点/小行程设上限不贴脸。
@@ -133,7 +139,7 @@
     let timer;
     function flyTo(target, targetZoom) {
       if (timer) timer.stop();
-      if (targetZoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(draw);
+      if (targetZoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(() => draw(false));
       const rStart = projection.rotate();
       const ip = d3.interpolate(rStart, [target[0], target[1], rStart[2] || 0]);
       const zStart = zoom, zEnd = targetZoom;
@@ -144,7 +150,7 @@
         projection.rotate(ip(e));
         zoom = zStart + (zEnd - zStart) * e;
         projection.scale(baseScale * zoom);
-        draw();
+        draw(t < 1);
         if (t >= 1) timer.stop();
       });
     }
@@ -172,6 +178,7 @@
           zoom = zoomForRadius(v.radius);
           projection.rotate([-v.lng, -v.lat]).scale(baseScale * zoom);
           draw();
+          if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(() => draw(false));
         }
       },
       resetView() {
