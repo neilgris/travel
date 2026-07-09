@@ -64,6 +64,9 @@ def build_globe_data():
             "arcs": arcs,
         })
 
+    # 配色按 start_date 升序取（上面），列表则倒序输出——最近的旅程排在前面。
+    out_trips.reverse()
+
     return {
         "trips": out_trips,
         "cities": list(cities.values()),
