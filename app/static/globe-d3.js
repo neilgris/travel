@@ -142,11 +142,12 @@
       if (zoom >= DETAIL_ZOOM && !shared.landHi) shared.loadDetail().then(draw);
     }, { passive: false });
 
-    // 视野角半径（弧度）→ 缩放系数：让该范围填满约 80% 半屏，单点/小行程设上限不贴脸。
+    // 视野角半径（弧度）→ 缩放系数：让该范围填满约 92% 短边（贴合坐标区间、尽量大而不裁掉端点）；
+    // 上限放到 16、下限贴合小行程（floor 0.02），让默认与 hover 都能明显放大到位。
     function zoomForRadius(radius) {
       const half = Math.min(root.clientWidth, root.clientHeight) / 2;
-      const s = 0.8 * half / Math.max(Math.sin(radius), 0.04);   // 需要的 scale
-      return Math.max(ZOOM_MIN, Math.min(4, s / baseScale));     // 折算成系数并封顶
+      const s = 0.92 * half / Math.max(Math.sin(radius), 0.02);  // 需要的 scale
+      return Math.max(ZOOM_MIN, Math.min(16, s / baseScale));    // 折算成系数并封顶
     }
 
     // 旋转 + 缩放补间（focusView 用）
