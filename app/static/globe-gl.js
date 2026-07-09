@@ -91,11 +91,15 @@
       color: a.color, tripId: a.tripId, tripTitle: a.tripTitle,
       dates: a.dates, mode: a.mode, emoji: a.emoji,
     }));
-    const labels = [];
+    // HTML 覆盖层：城市名标签 + 弧线中点的交通 emoji（共用一份 htmlElementsData）
+    const overlays = [];
+    shared.cities.forEach((c) => {
+      overlays.push({ kind: "city", lat: c.lat, lng: c.lng, alt: 0.01, name: c.name });
+    });
     shared.arcs.forEach((a) => {
       if (!a.emoji) return;
       const m = midpoint(a.from, a.to);
-      labels.push({ lat: m.lat, lng: m.lng, alt: m.alt, emoji: a.emoji, tripId: a.tripId });
+      overlays.push({ kind: "emoji", lat: m.lat, lng: m.lng, alt: m.alt, emoji: a.emoji, tripId: a.tripId });
     });
 
     let focusId = null;
@@ -119,9 +123,15 @@
       .arcAltitudeAutoScale(0.4)
       .arcLabel((a) => shared.arcCard(a))
       .onArcHover((a) => shared.onHover(a ? a.tripId : null))
-      .htmlElementsData(labels)
+      .htmlElementsData(overlays)
       .htmlLat("lat").htmlLng("lng").htmlAltitude("alt")
       .htmlElement((d) => {
+        if (d.kind === "city") {
+          const s = document.createElement("div");
+          s.className = "city-label-gl";
+          s.textContent = d.name;
+          return s;
+        }
         const s = document.createElement("div");
         s.className = "arc-emoji";
         s.textContent = d.emoji;

@@ -18,6 +18,7 @@
       .attr("stroke-linecap", "round").attr("stroke-width", 2);
     const gCity = svg.append("g");
     const gEmoji = svg.append("g");
+    const gLabel = svg.append("g");
     const sphere = { type: "Sphere" };
 
     const tip = document.createElement("div");
@@ -117,6 +118,14 @@
           d3.select(this).attr("display", vis ? null : "none")
             .attr("x", p[0]).attr("y", p[1]).text(a.emoji);
         });
+
+      // 城市名标签：只标正面可见的，贴在圆点右侧
+      gLabel.selectAll("text").data(shared.cities).join("text")
+        .attr("class", "city-label")
+        .attr("display", (c) => (visible(c.lng, c.lat) ? null : "none"))
+        .attr("x", (c) => projection([c.lng, c.lat])[0] + 5)
+        .attr("y", (c) => projection([c.lng, c.lat])[1] + 3)
+        .text((c) => c.name);
     }
 
     function mid(a, b) {

@@ -545,6 +545,13 @@ canvas { max-width: 100%; }
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
   transition: opacity 0.2s;
 }
+/* Globe.gl（写实/卫星）城市名标签：贴点右侧，深色描边保证在贴图上可读 */
+.city-label-gl {
+  font-size: 11px; font-weight: 600; color: #fff;
+  white-space: nowrap; pointer-events: none; user-select: none;
+  transform: translate(8px, -50%);
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.85);
+}
 /* Globe.gl hover 卡片 */
 .g-card {
   display: flex; flex-direction: column; gap: 2px;
@@ -649,6 +656,12 @@ canvas { max-width: 100%; }
 .d3-globe .river { fill: none; stroke: #5f9fd4; stroke-width: 0.7; }
 .d3-globe .admin { fill: none; stroke: #5f9277; stroke-width: 0.5; opacity: 0.8; }
 .d3-globe .city { fill: #fff; stroke: #e8792b; stroke-width: 2; }
+.d3-globe .city-label {
+  font-size: 11px; font-weight: 600; fill: #253a2c;
+  paint-order: stroke; stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 2.6px; stroke-linejoin: round;
+  pointer-events: none; user-select: none;
+}
 .arc-emoji-svg {
   font-size: 15px; pointer-events: none;
   transition: opacity 0.2s;
