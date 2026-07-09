@@ -90,6 +90,22 @@
         <span>${trips.map(esc).join("、")}</span></div>`;
     },
     onHover(id) { setFocus(id, false); },
+
+    // 详情层懒加载：首次调用拉四份 10m 数据并转几何，之后复用同一 Promise。
+    loadDetail() {
+      if (this._detail) return this._detail;
+      const get = (f) => fetch(STATIC + f).then((r) => r.json());
+      this._detail = Promise.all([
+        get("land-10m.json"), get("admin1-10m.json"),
+        get("lakes-10m.json"), get("rivers-10m.json"),
+      ]).then(([land, adm, lakes, rivers]) => {
+        this.landHi = topojson.feature(land, land.objects.land);
+        this.admin1 = topojson.mesh(adm, adm.objects.admin1, (a, b) => a !== b);
+        this.lakes = topojson.feature(lakes, lakes.objects.lakes);
+        this.rivers = topojson.feature(rivers, rivers.objects.rivers);
+      });
+      return this._detail;
+    },
   };
 
   // ---- 列表联动（渲染器无关）----
