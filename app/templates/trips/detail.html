@@ -1,7 +1,19 @@
 {% extends "base.html" %}
 {% block title %}{{ trip.title }}{% endblock %}
 {% block content %}
-<h1>{{ trip.title }}</h1>
+<div class="trip-title-nav">
+  {% if prev_trip %}
+  <a class="title-nav-arrow" href="{{ url_for('trips.detail', trip_id=prev_trip.id) }}" title="{{ prev_trip.title }}">‹</a>
+  {% else %}
+  <span class="title-nav-arrow disabled">‹</span>
+  {% endif %}
+  <h1>{{ trip.title }}</h1>
+  {% if next_trip %}
+  <a class="title-nav-arrow" href="{{ url_for('trips.detail', trip_id=next_trip.id) }}" title="{{ next_trip.title }}">›</a>
+  {% else %}
+  <span class="title-nav-arrow disabled">›</span>
+  {% endif %}
+</div>
 <p>{{ trip.start_date }} ~ {{ trip.end_date }} ·
    出行：{{ trip.transport_modes | map('transport_label') | join(' / ') or '—' }} ·
    总花费 ￥{{ stats.total_cny }}</p>

@@ -180,7 +180,19 @@ def detail(trip_id):
     next_day_date = trip.start_date
     if trip.days:
         next_day_date = max(d.date for d in trip.days) + dt.timedelta(days=1)
+    # 标题旁的上一个/下一个旅程：按开始日期排序，同日期按 id 兜底排序。
+    prev_trip = (Trip.query
+                 .filter(db.or_(Trip.start_date < trip.start_date,
+                                 db.and_(Trip.start_date == trip.start_date, Trip.id < trip.id)))
+                 .order_by(Trip.start_date.desc(), Trip.id.desc())
+                 .first())
+    next_trip = (Trip.query
+                 .filter(db.or_(Trip.start_date > trip.start_date,
+                                 db.and_(Trip.start_date == trip.start_date, Trip.id > trip.id)))
+                 .order_by(Trip.start_date.asc(), Trip.id.asc())
+                 .first())
     return render_template("trips/detail.html", trip=trip, next_day_date=next_day_date,
+                           prev_trip=prev_trip, next_trip=next_trip,
                            stats=trip_stats(trip), categories=CATEGORIES)
 
 
