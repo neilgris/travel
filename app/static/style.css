@@ -153,10 +153,10 @@ select {
 .leg-row { flex-wrap: wrap; }
 .leg-row select[name="leg_mode"] { flex: 0 0 7rem; min-width: 0; }
 
-/* 行程段：国家→城市二级选择 */
-.leg-city-picker { display: flex; gap: 0.4rem; flex: 1 1 260px; min-width: 220px; }
-.leg-city-picker select,
-.leg-city-picker input { flex: 1 1 0; min-width: 0; }
+/* 行程段：城市输入框 + 旁边一个按国家分组的快选下拉 */
+.leg-city-field { display: flex; gap: 0.35rem; flex: 1 1 0; min-width: 0; }
+.leg-city-field input { flex: 1 1 0; min-width: 0; }
+.leg-city-field select { flex: 0 0 auto; width: auto; max-width: 6rem; }
 
 /* 币种 / 汇率 一行排列，各占一半 */
 .cur-row select,
