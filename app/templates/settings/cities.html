@@ -13,8 +13,9 @@
 </form>
 {% for country, group in city_groups %}
 <h3 class="city-group"><span class="cg-flag">{{ country | country_flag }}</span> {{ country }} <small>{{ group|length }}</small></h3>
+<div class="city-group-grid">
 {% for c in group %}
-<div class="card settings-row">
+<div class="card settings-row city-row">
   <form method="post" action="{{ url_for('settings.edit_city', cid=c.id) }}"
         class="inline-edit">
     <input name="name" value="{{ c.name }}" required>
@@ -23,7 +24,7 @@
            placeholder="纬度" size="8">
     <input name="longitude" value="{{ c.longitude if c.longitude is not none else '' }}"
            placeholder="经度" size="8">
-    <label class="muted"><input type="checkbox" name="regeocode" value="1">重新定位</label>
+    <label class="muted"><input type="checkbox" name="regeocode" value="1">重定位</label>
     <button class="btn btn-sm" type="submit">保存</button>
   </form>
   <form method="post" action="{{ url_for('settings.delete_city', cid=c.id) }}"
@@ -32,5 +33,6 @@
   </form>
 </div>
 {% endfor %}
+</div>
 {% endfor %}
 {% endblock %}

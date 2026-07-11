@@ -282,6 +282,28 @@ select {
   border-radius: 50%;
 }
 
+/* ---- 设置页：城市按国家分组的紧凑网格 ---- */
+.city-group { margin: 0.8rem 0 0.35rem; }
+.city-group:first-of-type { margin-top: 0; }
+.city-group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
+  gap: 0.4rem 0.6rem;
+  margin-bottom: 0.5rem;
+}
+.city-row {
+  margin-bottom: 0;
+  padding: 0.4rem 0.55rem;
+  gap: 0.3rem;
+}
+.city-row .inline-edit { gap: 0.3rem; }
+.city-row .inline-edit input[name="name"] { flex: 0 1 5rem; min-width: 3rem; }
+.city-row .inline-edit input[name="country"] { flex: 0 1 4rem; min-width: 2.6rem; }
+.city-row .inline-edit input[name="latitude"],
+.city-row .inline-edit input[name="longitude"] { flex: 0 0 3.6rem; }
+.city-row .inline-edit .muted { font-size: 0.72rem; gap: 0.2rem; }
+.city-row .btn-sm { padding: 0.32rem 0.6rem; }
+
 /* 危险操作的文字链按钮（如删除旅程） */
 .link-danger {
   background: none;
