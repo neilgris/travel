@@ -1,3 +1,4 @@
+from collections import Counter
 from decimal import Decimal, ROUND_HALF_UP
 from app.models.day import CATEGORIES
 
@@ -82,16 +83,20 @@ def trips_overview(trips):
     global_by_category = {cat: Decimal("0.00") for cat in CATEGORIES}
     cities = set()
     countries = set()
+    country_visits = Counter()
     rows = []
     for t in trips:
         s = trip_stats(t)
         grand_total += s["total_cny"]
         for cat in CATEGORIES:
             global_by_category[cat] += s["by_category"][cat]
+        trip_countries = set()
         for c in t.cities:
             cities.add(c.id)
             if c.country:
                 countries.add(c.country)
+                trip_countries.add(c.country)
+        country_visits.update(trip_countries)
         rows.append({
             "id": t.id,
             "title": t.title,
@@ -116,7 +121,7 @@ def trips_overview(trips):
         "trip_count": len(rows),
         "city_count": len(cities),
         "country_count": len(countries),
-        "countries": sorted(countries),
+        "countries": sorted(countries, key=lambda c: (-country_visits[c], c)),
         "global_by_category": global_by_category,
         "most_expensive": most_expensive,
         "cheapest": cheapest,
