@@ -20,10 +20,8 @@
         class="inline-edit">
     <input name="name" value="{{ c.name }}" required>
     <input name="country" value="{{ c.country or '' }}" placeholder="国家/地区">
-    <input name="latitude" value="{{ c.latitude if c.latitude is not none else '' }}"
-           placeholder="纬度" size="8">
-    <input name="longitude" value="{{ c.longitude if c.longitude is not none else '' }}"
-           placeholder="经度" size="8">
+    <input type="hidden" name="latitude" value="{{ c.latitude if c.latitude is not none else '' }}">
+    <input type="hidden" name="longitude" value="{{ c.longitude if c.longitude is not none else '' }}">
     <label class="muted"><input type="checkbox" name="regeocode" value="1">重定位</label>
     <button class="btn btn-sm" type="submit">保存</button>
   </form>
