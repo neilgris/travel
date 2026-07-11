@@ -156,7 +156,7 @@ select {
 /* 行程段：城市输入框 + 旁边一个按国家分组的快选下拉 */
 .leg-city-field { display: flex; gap: 0.35rem; flex: 1 1 0; min-width: 0; }
 .leg-city-field input { flex: 1 1 0; min-width: 0; }
-.leg-city-field select { flex: 0 0 auto; width: auto; max-width: 6rem; }
+.leg-city-field select { flex: 1 1 0; min-width: 0; }
 
 /* 币种 / 汇率 一行排列，各占一半 */
 .cur-row select,
