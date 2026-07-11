@@ -509,6 +509,170 @@ canvas { max-width: 100%; }
 
 .muted { color: var(--muted); }
 
+/* ===== 旅程列表 · 消费对比看板 ===== */
+.list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.4rem;
+}
+.list-head h1 { margin: 0; }
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0;
+}
+.kpi-label { font-size: 0.82rem; color: var(--muted); letter-spacing: 0.03em; }
+.kpi-value { font-size: 1.7rem; font-weight: 700; color: var(--text); line-height: 1.1; }
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.3fr;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+  align-items: stretch;
+}
+.overview-grid > .card { margin-bottom: 0; }
+
+.super-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-decoration: none;
+  color: #fff;
+  border: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.super-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(40, 40, 30, 0.16); }
+.super-most { background: linear-gradient(135deg, #e98a72 0%, var(--accent-dark) 100%); }
+.super-cheap { background: linear-gradient(135deg, #45b3a6 0%, var(--primary-dark) 100%); }
+.super-emoji { font-size: 1.5rem; }
+.super-label { font-size: 0.82rem; opacity: 0.92; letter-spacing: 0.04em; }
+.super-title {
+  font-size: 1.05rem; font-weight: 600; margin-top: 0.1rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.super-amount { font-size: 1.5rem; font-weight: 700; }
+
+.super-top { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.9rem; }
+.super-top-label { font-size: 0.72rem; letter-spacing: 0.06em; opacity: 0.85; }
+.super-top-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(5, auto);
+  grid-auto-flow: column;      /* 先填满左列 5 个再填右列 */
+  column-gap: 1rem;
+  row-gap: 0.18rem;
+}
+.stt-item {
+  display: flex;
+  align-items: center;
+  gap: 0.34rem;
+  font-size: 0.72rem;
+  min-width: 0;
+}
+.stt-item > i {
+  flex: 0 0 auto;
+  width: 7px; height: 7px; border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+.stt-title { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stt-amount { flex: 0 0 auto; font-weight: 600; opacity: 0.95; }
+
+.super-comp {
+  margin-top: auto;          /* 推到卡片底部，填补留白 */
+  padding-top: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.super-comp-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+.super-comp-bar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.28);
+}
+.super-comp-bar > span { display: block; height: 100%; border-radius: 2px; }
+.super-comp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.7rem;
+  font-size: 0.76rem;
+}
+.scl-item { display: inline-flex; align-items: center; gap: 0.32rem; white-space: nowrap; }
+.scl-item > i {
+  width: 9px; height: 9px; border-radius: 50%;
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.55);
+}
+.super-comp-empty { font-size: 0.82rem; opacity: 0.8; margin-top: auto; }
+
+.card-sub { font-size: 0.78rem; font-weight: 400; margin-left: 0.4rem; }
+.compare-wrap { position: relative; width: 100%; }
+
+/* 对比图左侧 HTML 标签覆盖层（可点进详情） */
+.compare-labels {
+  position: absolute;
+  top: 0; left: 0;
+  width: 210px;
+  height: 100%;
+  pointer-events: none;   /* 空白处不挡图表交互 */
+}
+.compare-label {
+  position: absolute;
+  right: 10px;
+  max-width: 194px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  text-decoration: none;
+  pointer-events: auto;   /* 标签本身可点 */
+  transition: background 0.12s ease;
+}
+.compare-label:hover { background: var(--bg); }
+.compare-label:hover .cl-name { color: var(--primary-dark); }
+.cl-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--text);
+  max-width: 182px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cl-date { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+
+@media (max-width: 720px) {
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .overview-grid { grid-template-columns: 1fr; }
+  .kpi-value { font-size: 1.4rem; }
+}
+@media (max-width: 420px) {
+  .kpi-row { grid-template-columns: 1fr; }
+}
+
 /* ===== 首页地球 ===== */
 .globe-home {                 /* 覆盖 base 的 .container：满宽、无外边距 */
   max-width: none;

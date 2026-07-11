@@ -71,3 +71,53 @@ def trip_stats(trip):
         "cumulative": cumulative,
         "top_entries": top_entries[:10],
     }
+
+
+def trips_overview(trips):
+    """跨旅程消费对比看板数据：复用 trip_stats 逐趟统计后聚合。
+
+    trips 为任意顺序的 Trip 列表；返回的 trips 列表按总花费降序（=花费排名）。
+    """
+    grand_total = Decimal("0.00")
+    global_by_category = {cat: Decimal("0.00") for cat in CATEGORIES}
+    cities = set()
+    countries = set()
+    rows = []
+    for t in trips:
+        s = trip_stats(t)
+        grand_total += s["total_cny"]
+        for cat in CATEGORIES:
+            global_by_category[cat] += s["by_category"][cat]
+        for c in t.cities:
+            cities.add(c.id)
+            if c.country:
+                countries.add(c.country)
+        rows.append({
+            "id": t.id,
+            "title": t.title,
+            "start_date": t.start_date,
+            "end_date": t.end_date,
+            "total_cny": s["total_cny"],
+            "by_category": s["by_category"],
+            "top_entries": s["top_entries"],
+        })
+
+    rows.sort(key=lambda r: r["total_cny"], reverse=True)
+
+    def _card(r):
+        return {"id": r["id"], "title": r["title"], "total_cny": r["total_cny"],
+                "by_category": r["by_category"], "top_entries": r["top_entries"]}
+
+    most_expensive = _card(rows[0]) if rows else None
+    cheapest = _card(rows[-1]) if rows else None
+
+    return {
+        "grand_total": grand_total,
+        "trip_count": len(rows),
+        "city_count": len(cities),
+        "country_count": len(countries),
+        "global_by_category": global_by_category,
+        "most_expensive": most_expensive,
+        "cheapest": cheapest,
+        "trips": rows,
+    }
