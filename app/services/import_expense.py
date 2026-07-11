@@ -2,6 +2,8 @@ import datetime as dt
 from decimal import Decimal
 import xlrd
 
+from app.models.day import COMMON_CURRENCIES
+
 CATEGORY_MAP = {
     "旅游餐饮费": "吃饭",
     "旅游买买买": "购物",
@@ -11,12 +13,22 @@ CATEGORY_MAP = {
     "其他消费": "其他消费",
 }
 
-ACCOUNT_CURRENCY_MAP = {
-    "现金": "CNY",
-    "港币": "HKD",
-    "美元": "USD",
-    "日元": "JPY",
-}
+# 记账文件「账户/币种」列的中文 → ISO 币种码。
+# 主表由 COMMON_CURRENCIES（币种码 ↔ 中文名 的权威来源）自动生成，避免这里再手维护一份
+# 容易漏（曾漏掉欧元/瑞士法郎等）；再补现金/人民币与几个常见口语别名。
+ACCOUNT_CURRENCY_MAP = {zh: code for code, zh, _flag in COMMON_CURRENCIES}
+ACCOUNT_CURRENCY_MAP.update({
+    "现金": "CNY", "人民币": "CNY",
+    "美金": "USD",
+    "港元": "HKD",
+    "澳门币": "MOP",
+    "新币": "SGD", "新加坡币": "SGD",
+    "台币": "TWD", "新臺幣": "TWD",
+    "韩币": "KRW", "韩元": "KRW",
+    "澳大利亚元": "AUD",
+    "加拿大元": "CAD",
+    "阿联酋迪拉姆": "AED",
+})
 
 
 def parse_rows(file_obj):

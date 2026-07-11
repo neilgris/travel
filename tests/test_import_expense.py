@@ -90,6 +90,18 @@ def test_match_row_declared_foreign_currency_matches(app):
         assert resolved["currency_code"] == "JPY"
 
 
+def test_match_row_currency_by_chinese_name_beyond_hardcoded_four(app):
+    # 记账文件币种列可能是任意常见外币中文名（如 欧元 / 瑞士法郎），应都能对上。
+    with app.app_context():
+        trip = _make_trip(app, currencies=[("EUR", "7.8"), ("CHF", "8.0")])
+        for name, code in [("欧元", "EUR"), ("瑞士法郎", "CHF")]:
+            row = {"date": dt.date(2026, 1, 20), "category_raw": "旅游餐饮费",
+                   "account_raw": name, "amount": Decimal("10"), "title": "x"}
+            matched, resolved = match_row(trip, row)
+            assert resolved["currency_code"] == code, name
+            assert matched is True, name
+
+
 def test_parse_rows_skips_non_expense_rows():
     content = make_xls_bytes([
         {"type": "收入", "date": "2026-01-20 10:00:00", "category": "工资",
