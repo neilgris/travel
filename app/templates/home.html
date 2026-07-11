@@ -23,13 +23,13 @@
         <a class="trip-item" href="{{ t.url }}" data-trip="{{ t.id }}" style="--c: {{ t.color }}">
           <span class="ti-dot"></span>
           <span class="ti-body">
-            <span class="ti-title">{{ t.title }}</span>
             <span class="ti-sub">
-              <span class="ti-meta">{{ t.start_date }} → {{ t.end_date }}</span>
+              <span class="ti-title">{{ t.title }}</span>
               {% if t.modes %}
                 <span class="ti-modes">{% for m in t.modes %}{{ m | transport_emoji }}{% endfor %}</span>
               {% endif %}
             </span>
+            <span class="ti-meta">{{ t.start_date }} → {{ t.end_date }}</span>
           </span>
         </a>
       {% else %}

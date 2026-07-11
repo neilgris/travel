@@ -781,11 +781,12 @@ canvas { max-width: 100%; }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 25%, transparent);
 }
 .ti-body { display: flex; flex-direction: column; min-width: 0; }
+.ti-sub { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
 .ti-title {
+  flex: 1 1 auto; min-width: 0;
   font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.ti-sub { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
 .ti-meta {
   font-size: 0.78rem; color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
