@@ -53,12 +53,5 @@
 
   document.addEventListener('change', function (e) {
     if (e.target.matches('select[name="cur_code"]')) fetchRate(e.target);
-    if (e.target.matches('.leg-city-pick')) {
-      // 行程段城市：下拉只是快速填充，选完把值塞进旁边的文本框，自己复位。
-      var field = e.target.closest('.leg-city-field');
-      var input = field && field.querySelector('input');
-      if (input && e.target.value) input.value = e.target.value;
-      e.target.selectedIndex = 0;
-    }
   });
 })();
