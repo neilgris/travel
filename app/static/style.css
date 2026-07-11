@@ -780,7 +780,7 @@ canvas { max-width: 100%; }
   background: var(--c);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 25%, transparent);
 }
-.ti-body { display: flex; flex-direction: column; min-width: 0; }
+.ti-body { display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; }
 .ti-sub { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
 .ti-title {
   flex: 1 1 auto; min-width: 0;
