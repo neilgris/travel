@@ -31,6 +31,17 @@ _NAME_TO_CODE = {
 }
 
 
+# 代码 → 中文名（_NAME_TO_CODE 的反查，同代码多个别名时取第一个/更常用的写法）
+_CODE_TO_NAME = {}
+for _name, _code in _NAME_TO_CODE.items():
+    _CODE_TO_NAME.setdefault(_code, _name)
+
+
+def country_name_from_code(code):
+    """ISO alpha-2 代码 → 中文国家名；未收录返回 None。"""
+    return _CODE_TO_NAME.get((code or "").strip().upper())
+
+
 def flag_from_code(code):
     """ISO alpha-2 代码 → 国旗 emoji（两个字母各映射到区域指示符）。"""
     code = (code or "").strip().upper()

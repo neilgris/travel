@@ -34,12 +34,32 @@ def test_add_person(client, app):
 
 
 def test_add_city_geocodes(client, app):
-    with patch("app.blueprints.settings.geocode", return_value=(43.06, 141.35)):
+    with patch("app.blueprints.settings.geocode", return_value=(43.06, 141.35, "jp")):
         client.post("/settings/cities", data={"name": "札幌"},
                     follow_redirects=True)
     with app.app_context():
         c = City.query.filter_by(name="札幌").one()
         assert c.latitude == 43.06 and c.longitude == 141.35
+
+
+def test_add_city_country_auto_filled_from_code(client, app):
+    """新增城市不填国家时，用地理编码返回的国家代码自动填充。"""
+    with patch("app.blueprints.settings.geocode", return_value=(43.06, 141.35, "jp")):
+        client.post("/settings/cities", data={"name": "札幌"},
+                    follow_redirects=True)
+    with app.app_context():
+        c = City.query.filter_by(name="札幌").one()
+        assert c.country == "日本"
+
+
+def test_add_city_explicit_country_not_overridden(client, app):
+    """用户手填了国家时，不用地理编码结果覆盖。"""
+    with patch("app.blueprints.settings.geocode", return_value=(43.06, 141.35, "jp")):
+        client.post("/settings/cities", data={"name": "札幌市", "country": "日本国"},
+                    follow_redirects=True)
+    with app.app_context():
+        c = City.query.filter_by(name="札幌市").one()
+        assert c.country == "日本国"
 
 
 def test_add_city_no_coords(client, app):
@@ -117,7 +137,7 @@ def test_edit_city_regeocode(client, app):
         db.session.add(c)
         db.session.commit()
         cid = c.id
-    with patch("app.blueprints.settings.geocode", return_value=(10.0, 20.0)):
+    with patch("app.blueprints.settings.geocode", return_value=(10.0, 20.0, "jp")):
         client.post(f"/settings/cities/{cid}/edit",
                     data={"name": "待定位", "regeocode": "1"},
                     follow_redirects=True)

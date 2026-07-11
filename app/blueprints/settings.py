@@ -6,6 +6,7 @@ from app.models.city import City
 from app.models.trip import Leg
 from app.models.day import Day
 from app.services.geocoding import geocode
+from app.services.flags import country_name_from_code
 from app.services.uploads import save_upload
 
 bp = Blueprint("settings", __name__, url_prefix="/settings")
@@ -28,7 +29,8 @@ def _group_cities_by_country():
     groups = {}
     for c in cities:
         groups.setdefault(c.country, []).append(c)
-    ordered = [(k, groups[k]) for k in sorted(g for g in groups if g)]
+    ordered = [(k, groups[k]) for k in
+               sorted((g for g in groups if g), key=lambda g: (-len(groups[g]), g))]
     if None in groups:
         ordered.append(("未分类", groups[None]))
     return ordered
@@ -87,12 +89,16 @@ def cities():
         if not name:
             flash("名称不能为空")
             return redirect(url_for("settings.cities"))
-        coords = geocode(name)
-        lat, lon = coords if coords else (None, None)
+        result = geocode(name)
+        if result:
+            lat, lon, country_code = result
+        else:
+            lat = lon = country_code = None
+        country = request.form.get("country") or country_name_from_code(country_code)
         db.session.add(City(name=name, latitude=lat, longitude=lon,
-                            country=request.form.get("country") or None))
+                            country=country))
         db.session.commit()
-        flash("已添加城市" + ("" if coords else "（未找到坐标，可稍后补）"))
+        flash("已添加城市" + ("" if result else "（未找到坐标，可稍后补）"))
         return redirect(url_for("settings.cities"))
     return render_template("settings/cities.html",
                            city_groups=_group_cities_by_country())
@@ -108,9 +114,12 @@ def edit_city(cid):
     city.name = name
     city.country = request.form.get("country") or None
     if request.form.get("regeocode"):
-        coords = geocode(name)
-        city.latitude, city.longitude = coords if coords else (None, None)
-        flash("已更新城市" + ("" if coords else "（未找到坐标）"))
+        result = geocode(name)
+        if result:
+            city.latitude, city.longitude, _ = result
+        else:
+            city.latitude = city.longitude = None
+        flash("已更新城市" + ("" if result else "（未找到坐标）"))
     else:
         city.latitude = _parse_coord(request.form.get("latitude"))
         city.longitude = _parse_coord(request.form.get("longitude"))

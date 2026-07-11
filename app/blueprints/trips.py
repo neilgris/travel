@@ -10,6 +10,7 @@ from app.models.person import Person
 from app.models.day import (Day, Entry, DayImage, CATEGORIES,
                             TRANSPORT_MODES, COMMON_CURRENCIES)
 from app.services.geocoding import geocode
+from app.services.flags import country_name_from_code
 from app.services.exchange import fetch_rate
 from app.services.stats import trip_stats, trips_overview
 from app.services.uploads import save_upload, delete_upload
@@ -29,9 +30,13 @@ def _resolve_city(name):
         return None
     city = City.query.filter_by(name=name).first()
     if city is None:
-        coords = geocode(name)
-        lat, lon = coords if coords else (None, None)
-        city = City(name=name, latitude=lat, longitude=lon)
+        result = geocode(name)
+        if result:
+            lat, lon, country_code = result
+            country = country_name_from_code(country_code)
+        else:
+            lat = lon = country = None
+        city = City(name=name, latitude=lat, longitude=lon, country=country)
         db.session.add(city)
         db.session.flush()
     return city

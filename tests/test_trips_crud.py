@@ -38,7 +38,7 @@ def test_create_trip(client, app):
 def test_create_trip_creates_new_city_inline(client, app):
     """行程段输入一个未维护的新城市名时，应自动地理编码并创建该城市。"""
     seed_cities(app)
-    with patch("app.blueprints.trips.geocode", return_value=(35.01, 135.77)):
+    with patch("app.blueprints.trips.geocode", return_value=(35.01, 135.77, "jp")):
         resp = client.post("/trips/create", data={
             "title": "京都之旅",
             "start_date": "2026-04-01", "end_date": "2026-04-03",
@@ -49,6 +49,7 @@ def test_create_trip_creates_new_city_inline(client, app):
     with app.app_context():
         kyoto = City.query.filter_by(name="京都").one()
         assert kyoto.latitude == 35.01 and kyoto.longitude == 135.77
+        assert kyoto.country == "日本"
         t = Trip.query.filter_by(title="京都之旅").one()
         assert t.legs[0].to_city.name == "京都"
 
