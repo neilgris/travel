@@ -56,7 +56,9 @@
   </div>
   <div class="card kpi">
     <span class="kpi-label">到访国家</span>
-    <span class="kpi-value">{{ overview.country_count }}</span>
+    <span class="kpi-value">{{ overview.country_count }}
+      <span class="kpi-flags">{% for c in overview.countries %}{{ c | country_flag }}{% endfor %}</span>
+    </span>
   </div>
   <div class="card kpi">
     <span class="kpi-label">到访城市</span>

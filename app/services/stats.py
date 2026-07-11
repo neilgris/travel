@@ -116,6 +116,7 @@ def trips_overview(trips):
         "trip_count": len(rows),
         "city_count": len(cities),
         "country_count": len(countries),
+        "countries": sorted(countries),
         "global_by_category": global_by_category,
         "most_expensive": most_expensive,
         "cheapest": cheapest,
