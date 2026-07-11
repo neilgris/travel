@@ -15,6 +15,8 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     from .models.day import transport_label, transport_emoji
     app.jinja_env.filters["transport_label"] = transport_label
     app.jinja_env.filters["transport_emoji"] = transport_emoji
+    from .services.flags import country_flag
+    app.jinja_env.filters["country_flag"] = country_flag
     from .blueprints import register_blueprints
     register_blueprints(app)
     with app.app_context():

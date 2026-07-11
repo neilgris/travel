@@ -12,7 +12,7 @@
   <button class="btn" type="submit">添加（自动获取坐标）</button>
 </form>
 {% for country, group in city_groups %}
-<h3 class="city-group">{{ country }} <small>{{ group|length }}</small></h3>
+<h3 class="city-group"><span class="cg-flag">{{ country | country_flag }}</span> {{ country }} <small>{{ group|length }}</small></h3>
 {% for c in group %}
 <div class="card settings-row">
   <form method="post" action="{{ url_for('settings.edit_city', cid=c.id) }}"
