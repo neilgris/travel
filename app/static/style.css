@@ -785,8 +785,12 @@ canvas { max-width: 100%; }
   font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.ti-meta { font-size: 0.78rem; color: var(--muted); }
-.ti-modes { font-size: 0.95rem; letter-spacing: 1px; margin-top: 1px; }
+.ti-sub { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.ti-meta {
+  font-size: 0.78rem; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ti-modes { flex: 0 0 auto; font-size: 0.95rem; letter-spacing: 1px; }
 .side-empty {
   padding: 2rem 1rem; text-align: center;
   color: var(--muted); font-size: 0.9rem; line-height: 2;

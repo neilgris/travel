@@ -24,10 +24,12 @@
           <span class="ti-dot"></span>
           <span class="ti-body">
             <span class="ti-title">{{ t.title }}</span>
-            <span class="ti-meta">{{ t.start_date }} → {{ t.end_date }}</span>
-            {% if t.modes %}
-              <span class="ti-modes">{% for m in t.modes %}{{ m | transport_emoji }}{% endfor %}</span>
-            {% endif %}
+            <span class="ti-sub">
+              <span class="ti-meta">{{ t.start_date }} → {{ t.end_date }}</span>
+              {% if t.modes %}
+                <span class="ti-modes">{% for m in t.modes %}{{ m | transport_emoji }}{% endfor %}</span>
+              {% endif %}
+            </span>
           </span>
         </a>
       {% else %}
