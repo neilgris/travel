@@ -1,5 +1,20 @@
 {% extends "base.html" %}
 {% block title %}{{ '编辑' if trip else '创建' }}旅程{% endblock %}
+{% macro city_picker(field_name, city) %}
+{% set sel_country = city.country if (city and city.country) else ('__none__' if city else '') %}
+<span class="leg-city-picker">
+  <select class="leg-country">
+    <option value="">国家</option>
+    {% for c in country_names %}<option value="{{ c }}" {{ 'selected' if sel_country == c }}>{{ c }}</option>{% endfor %}
+    {% if city_groups.get('') %}<option value="__none__" {{ 'selected' if sel_country == '__none__' }}>未分类</option>{% endif %}
+    <option value="__new__">＋ 新城市</option>
+  </select>
+  <select name="{{ field_name }}" class="leg-city" data-selected="{{ city.name if city else '' }}">
+    <option value="">城市</option>
+  </select>
+  <input type="text" name="{{ field_name }}" class="leg-city-new" placeholder="新城市名" hidden disabled>
+</span>
+{% endmacro %}
 {% block content %}
 <h1>{{ '编辑' if trip else '创建' }}旅程</h1>
 <form method="post" class="card trip-form">
@@ -23,17 +38,13 @@
   <textarea name="notes">{{ trip.notes if trip else '' }}</textarea>
 
   <h3>行程段（出发→到达 + 出行方式）</h3>
-  <datalist id="city-options">
-    {% for c in cities %}<option value="{{ c.name }}">{% endfor %}
-  </datalist>
+  <script type="application/json" id="city-groups-data">{{ city_groups | tojson }}</script>
   <div id="legs">
     {% for leg in (trip.legs if trip else [None]) %}
     <div class="leg-row">
       <input type="hidden" name="leg_seq" value="{{ loop.index }}">
-      <input list="city-options" name="leg_from" placeholder="出发城市"
-             value="{{ leg.from_city.name if leg and leg.from_city else '' }}">
-      <input list="city-options" name="leg_to" placeholder="到达城市"
-             value="{{ leg.to_city.name if leg and leg.to_city else '' }}">
+      {{ city_picker('leg_from', leg.from_city if leg else None) }}
+      {{ city_picker('leg_to', leg.to_city if leg else None) }}
       <select name="leg_mode">
         <option value="">方式</option>
         {% for m in modes %}<option value="{{ m }}" {{ 'selected' if leg and leg.transport_mode==m }}>{{ m | transport_label }}</option>{% endfor %}
@@ -45,8 +56,8 @@
   <template id="leg-template">
     <div class="leg-row">
       <input type="hidden" name="leg_seq" value="">
-      <input list="city-options" name="leg_from" placeholder="出发城市">
-      <input list="city-options" name="leg_to" placeholder="到达城市">
+      {{ city_picker('leg_from', None) }}
+      {{ city_picker('leg_to', None) }}
       <select name="leg_mode">
         <option value="">方式</option>
         {% for m in modes %}<option value="{{ m }}">{{ m | transport_label }}</option>{% endfor %}
@@ -55,7 +66,7 @@
     </div>
   </template>
   <button type="button" class="btn-add" data-add="legs" data-template="leg-template">+ 添加行程段</button>
-  <small>从下拉里选已有城市，或直接输入新城市名——保存时自动创建并定位坐标。</small>
+  <small>先选国家再选城市；找不到就选"＋ 新城市"手动输入——保存时自动创建并定位坐标。</small>
 
   <h3>币种与汇率（1 人民币 = ? 外币）</h3>
   <div id="currencies">

@@ -42,6 +42,14 @@ def _resolve_city(name):
     return city
 
 
+def _city_groups_for_picker():
+    """行程段二级选择（国家→城市）用：{国家名(''表示未分类): [城市名...]}，城市按名称排序。"""
+    groups = {}
+    for c in City.query.order_by(City.name).all():
+        groups.setdefault(c.country or "", []).append(c.name)
+    return groups
+
+
 @bp.route("/")
 def list():
     trips = Trip.query.order_by(Trip.start_date.desc()).all()
@@ -116,8 +124,10 @@ def create():
         db.session.commit()
         flash("旅程已创建")
         return redirect(url_for("trips.detail", trip_id=trip.id))
+    city_groups = _city_groups_for_picker()
     return render_template("trips/form.html", trip=None,
-                           cities=City.query.order_by(City.name).all(),
+                           city_groups=city_groups,
+                           country_names=sorted(k for k in city_groups if k),
                            people=Person.query.order_by(Person.name).all(),
                            modes=TRANSPORT_MODES,
                            currency_options=COMMON_CURRENCIES)
@@ -131,8 +141,10 @@ def edit(trip_id):
         db.session.commit()
         flash("旅程已更新")
         return redirect(url_for("trips.detail", trip_id=trip.id))
+    city_groups = _city_groups_for_picker()
     return render_template("trips/form.html", trip=trip,
-                           cities=City.query.order_by(City.name).all(),
+                           city_groups=city_groups,
+                           country_names=sorted(k for k in city_groups if k),
                            people=Person.query.order_by(Person.name).all(),
                            modes=TRANSPORT_MODES,
                            currency_options=COMMON_CURRENCIES)
