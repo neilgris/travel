@@ -59,6 +59,7 @@ app/
 │   ├── geocoding.py   城市坐标地理编码（Nominatim）
 │   ├── exchange.py    实时汇率查询（open.er-api.com）
 │   ├── stats.py       花费换算与单旅程统计
+│   ├── distance.py    旅程里程（行程段城市间 haversine 直线距离累加）
 │   ├── uploads.py     图片上传保存
 │   ├── import_expense.py  记账 .xls 解析与匹配（导入用）
 │   └── globe.py       首页地球数据（Leg→弧线 + 城市点）
