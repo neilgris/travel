@@ -4,11 +4,12 @@
   "吃饭": "#e76f51", "游玩": "#2a9d8f", "购物": "#e9c46a",
   "住宿": "#4a9fc9", "交通": "#9b8cb5", "其他消费": "#b0a99f"} %}
 {% macro toplist(card) %}
-{% if card.top_entries %}
+{% set top10 = card.top_entries[:10] %}
+{% if top10 %}
 <span class="super-top">
-  <span class="super-top-label">最贵消费 Top {{ card.top_entries|length }}</span>
+  <span class="super-top-label">最贵消费 Top {{ top10|length }}</span>
   <ol class="super-top-grid">
-    {% for e in card.top_entries %}
+    {% for e in top10 %}
     <li class="stt-item">
       <i style="background: {{ cat_colors.get(e.category, '#b0a99f') }}"></i>
       <span class="stt-title">{{ e.title }}</span>
@@ -52,7 +53,7 @@
   </div>
   <div class="card kpi">
     <span class="kpi-label">旅程数</span>
-    <span class="kpi-value">{{ overview.trip_count }}</span>
+    <span class="kpi-value">{{ overview.trip_count }} <small>· {{ '{:,}'.format(total_distance_km) }}km</small></span>
   </div>
   <div class="card kpi">
     <span class="kpi-label">到访国家</span>

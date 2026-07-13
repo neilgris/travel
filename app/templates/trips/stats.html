@@ -4,68 +4,89 @@
   "吃饭": "#e76f51", "游玩": "#2a9d8f", "购物": "#e9c46a",
   "住宿": "#4a9fc9", "交通": "#9b8cb5", "其他消费": "#b0a99f"} %}
 {% block content %}
-<h1>{{ trip.title }} · 花费统计</h1>
-<p><a href="{{ url_for('trips.detail', trip_id=trip.id) }}">← 返回详情</a></p>
-
-<div class="card stat-total">
-  <span class="stat-total-label">总花费</span>
-  <span class="stat-total-value">￥{{ stats.total_cny }}</span>
+<div class="stat-head">
+  <h1>{{ trip.title }} · 花费统计</h1>
+  <a href="{{ url_for('trips.detail', trip_id=trip.id) }}">← 返回详情</a>
 </div>
 
-<div class="stat-grid">
-  <div class="card">
-    <h3>按类别</h3>
-    <div class="donut-wrap">
-      <canvas id="catChart"></canvas>
-      <div class="donut-center">
-        <span class="donut-center-label">总计</span>
-        <span class="donut-center-value">￥{{ stats.total_cny }}</span>
+<div class="stat-page">
+  <div class="stat-summary">
+    <div class="stat-total-side">
+      <span class="stat-total-label">总花费</span>
+      <span class="stat-total-value">￥{{ '{:,.2f}'.format(stats.total_cny) }}</span>
+    </div>
+    <div class="stat-metric-side">
+      <span class="stat-metric-label">旅程里程</span>
+      <span class="stat-metric-value">{{ '{:,}'.format(distance_km) }} <small>km</small></span>
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="card">
+      <h3>按类别</h3>
+      <div class="donut-wrap">
+        <canvas id="catChart"></canvas>
+        <div class="donut-center">
+          <span class="donut-center-label">总计</span>
+          <span class="donut-center-value">￥{{ '{:,.2f}'.format(stats.total_cny) }}</span>
+        </div>
+      </div>
+      <p class="cat-hint muted">点击扇区或图例查看明细</p>
+    </div>
+
+    <div class="card cat-detail-card">
+      <h3 id="catDetailTitle">类别明细</h3>
+      <div id="catDetail" class="cat-detail-body">
+        <p class="muted">点击左侧环图扇区或图例项，查看该类别下所有消费明细。</p>
       </div>
     </div>
   </div>
 
   <div class="card">
+    <h3>每日花费与累计</h3>
+    <canvas id="dayChart" height="150"></canvas>
+  </div>
+
+  <div class="card">
+    <h3>最贵的消费 · Top {{ stats.top_entries|length }}</h3>
+    {% if stats.top_entries %}
+    <ol class="top-grid">
+      {% for e in stats.top_entries %}
+      <li class="top-item">
+        <span class="top-bar" style="background: {{ cat_colors.get(e.category, '#b0a99f') }}"></span>
+        <span class="top-main">
+          <span class="top-title">{{ e.title }}</span>
+          <span class="top-meta">{{ e.category }} · {{ e.date.isoformat() }}</span>
+        </span>
+        <span class="top-amount">￥{{ '{:,.2f}'.format(e.cny) }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="muted">暂无消费记录</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
     <h3>按城市</h3>
     {% if stats.by_city %}
-    <canvas id="cityChart" height="180"></canvas>
+    {% set city_count = stats.by_city|length %}
+    <div class="city-chart-wrap" style="height: {{ (city_count * 38 + 40) }}px">
+      <canvas id="cityChart"></canvas>
+    </div>
     {% else %}
     <p class="muted">暂无数据</p>
     {% endif %}
   </div>
-</div>
 
-<div class="card">
-  <h3>每日花费与累计</h3>
-  <canvas id="dayChart" height="150"></canvas>
-</div>
-
-<div class="card">
-  <h3>最贵的消费 · Top {{ stats.top_entries|length }}</h3>
-  {% if stats.top_entries %}
-  <ol class="top-list">
-    {% for e in stats.top_entries %}
-    <li class="top-item">
-      <span class="top-bar" style="background: {{ cat_colors.get(e.category, '#b0a99f') }}"></span>
-      <span class="top-main">
-        <span class="top-title">{{ e.title }}</span>
-        <span class="top-meta">{{ e.category }} · {{ e.date.isoformat() }}</span>
-      </span>
-      <span class="top-amount">￥{{ '%.2f'|format(e.cny) }}</span>
-    </li>
+  <div class="card"><h3>按币种</h3>
+  <table>
+    <tr><th>币种</th><th>原始金额</th><th>折合人民币</th></tr>
+    {% for cur in stats.by_currency %}
+    <tr><td>{{ cur.code }}</td><td>{{ '{:,.2f}'.format(cur.original) }}</td><td>￥{{ '{:,.2f}'.format(cur.cny) }}</td></tr>
     {% endfor %}
-  </ol>
-  {% else %}
-  <p class="muted">暂无消费记录</p>
-  {% endif %}
+  </table></div>
 </div>
-
-<div class="card"><h3>按币种</h3>
-<table>
-  <tr><th>币种</th><th>原始金额</th><th>折合人民币</th></tr>
-  {% for cur in stats.by_currency %}
-  <tr><td>{{ cur.code }}</td><td>{{ cur.original }}</td><td>￥{{ cur.cny }}</td></tr>
-  {% endfor %}
-</table></div>
 
 <script>
 const CAT_COLORS = {{ cat_colors|tojson }};
@@ -76,6 +97,7 @@ const dayValues = {{ day_values_json | safe }};
 const cumulativeValues = {{ cumulative_values_json | safe }};
 const cityLabels = {{ city_labels_json | safe }};
 const cityValues = {{ city_values_json | safe }};
+const catDetail = {{ cat_detail_json | safe }};
 
 const CITY_PALETTE = ['#2a9d8f','#e76f51','#e9c46a','#4a9fc9','#9b8cb5','#f4a261','#8ab17d','#b0a99f'];
 
@@ -145,7 +167,7 @@ const softShadow = {
 
 if (catLabels.length) {
   const bases = catLabels.map(l => CAT_COLORS[l] || '#b0a99f');
-  new Chart(document.getElementById('catChart'), {
+  const catChart = new Chart(document.getElementById('catChart'), {
     type: 'doughnut',
     data: { labels: catLabels,
             datasets: [{
@@ -157,8 +179,13 @@ if (catLabels.length) {
     options: {
       cutout: '62%',
       animation: { animateRotate: true, animateScale: true, duration: 900, easing: 'easeOutQuart' },
+      onClick: (e, els) => {
+        if (els.length) showCatDetail(els[0].index);
+      },
+      onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
       plugins: {
-        legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true, pointStyle: 'circle' } },
+        legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true, pointStyle: 'circle' },
+                  onClick: (e, item, legend) => { showCatDetail(item.index); } },
         tooltip: { callbacks: { label: i => {
           const total = catValues.reduce((a, b) => a + b, 0);
           const pct = total ? (i.raw / total * 100).toFixed(1) : 0;
@@ -168,6 +195,48 @@ if (catLabels.length) {
     },
     plugins: [softShadow],
   });
+
+  // 类别明细面板渲染
+  const catDetailEl = document.getElementById('catDetail');
+  const catDetailTitle = document.getElementById('catDetailTitle');
+  function showCatDetail(idx) {
+    const cat = catLabels[idx];
+    const entries = catDetail[cat] || [];
+    catDetailTitle.textContent = cat + ' · 明细（' + entries.length + '笔）';
+    if (!entries.length) {
+      catDetailEl.innerHTML = '<p class="muted">该类别暂无消费记录</p>';
+      return;
+    }
+    const total = entries.reduce((s, e) => s + Number(e.cny), 0);
+    let html = '<div class="cat-detail-summary">合计 ' + fmt(total) + ' · ' + entries.length + ' 笔</div>';
+    html += '<ol class="cat-detail-list">';
+    entries.forEach((e, i) => {
+      const color = CAT_COLORS[cat] || '#b0a99f';
+      const date = e.date;
+      html += '<li class="cat-detail-item">' +
+        '<span class="cat-detail-rank">' + (i + 1) + '</span>' +
+        '<span class="cat-detail-bar" style="background:' + color + '"></span>' +
+        '<span class="cat-detail-main">' +
+          '<span class="cat-detail-title"></span>' +  // textContent 防注入
+          '<span class="cat-detail-meta">' + date + ' · ' + escapeHtml(e.city) + '</span>' +
+        '</span>' +
+        '<span class="cat-detail-amount">' + fmt(e.cny) + '</span>' +
+      '</li>';
+    });
+    html += '</ol>';
+    catDetailEl.innerHTML = html;
+    // 用 textContent 安全设置标题（防 XSS）
+    const titleEls = catDetailEl.querySelectorAll('.cat-detail-title');
+    entries.forEach((e, i) => { titleEls[i].textContent = e.title; });
+  }
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // 默认显示消费最高的类别
+  if (catLabels.length) showCatDetail(0);
 }
 
 if (cityLabels.length) {
@@ -182,6 +251,7 @@ if (cityLabels.length) {
             }] },
     options: {
       indexAxis: 'y',
+      maintainAspectRatio: false,
       animation: { duration: 800, easing: 'easeOutQuart' },
       plugins: { legend: { display: false },
                  tooltip: { callbacks: { label: i => ' ' + fmt(i.raw) } } },

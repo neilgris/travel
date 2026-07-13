@@ -42,3 +42,17 @@ def test_trip_stats(session):
     jpy = next(x for x in s["by_currency"] if x["code"] == "JPY")
     assert jpy["original"] == Decimal("6000")
     assert jpy["cny"] == Decimal("300.00")
+    # top_entries 取前 20
+    assert len(s["top_entries"]) <= 20
+    # by_category_detail: 每个类别含消费明细列表，按价格降序
+    assert "by_category_detail" in s
+    eat_detail = s["by_category_detail"]["吃饭"]
+    assert len(eat_detail) == 2
+    # 寿司 200 CNY > 拉面 100 CNY
+    assert eat_detail[0]["title"] == "寿司"
+    assert eat_detail[0]["cny"] == Decimal("200.00")
+    assert eat_detail[1]["title"] == "拉面"
+    assert eat_detail[1]["cny"] == Decimal("100.00")
+    shop_detail = s["by_category_detail"]["购物"]
+    assert len(shop_detail) == 1
+    assert shop_detail[0]["title"] == "手办"

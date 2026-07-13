@@ -63,6 +63,21 @@ def trip_stats(trip):
         key=lambda x: x["cny"], reverse=True)
     top_entries.sort(key=lambda x: x["cny"], reverse=True)
 
+    # 按类别分组的消费明细（含日期、城市），用于环图点击后右侧面板展示
+    by_category_detail = {cat: [] for cat in CATEGORIES}
+    for day in sorted(trip.days, key=lambda d: d.date):
+        city_name = day.city.name if day.city else NO_CITY
+        for e in day.entries:
+            cny = to_cny(e.amount, e.currency_code, rate_map)
+            by_category_detail[e.category].append({
+                "title": e.title,
+                "cny": cny,
+                "date": day.date,
+                "city": city_name,
+            })
+    for cat in by_category_detail:
+        by_category_detail[cat].sort(key=lambda x: x["cny"], reverse=True)
+
     return {
         "total_cny": total,
         "by_category": by_category,
@@ -70,7 +85,8 @@ def trip_stats(trip):
         "by_currency": list(by_currency.values()),
         "by_city": by_city_list,
         "cumulative": cumulative,
-        "top_entries": top_entries[:10],
+        "top_entries": top_entries[:20],
+        "by_category_detail": by_category_detail,
     }
 
 

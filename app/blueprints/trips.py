@@ -13,6 +13,7 @@ from app.services.geocoding import geocode
 from app.services.flags import country_name_from_code
 from app.services.exchange import fetch_rate
 from app.services.stats import trip_stats, trips_overview
+from app.services.distance import trip_distance_km
 from app.services.uploads import save_upload, delete_upload
 from app.services.import_expense import parse_rows, match_row
 
@@ -54,6 +55,7 @@ def _city_groups_for_picker():
 def list():
     trips = Trip.query.order_by(Trip.start_date.desc()).all()
     overview = trips_overview(trips)
+    total_distance_km = sum(trip_distance_km(t) for t in trips)
     # 旅程标题是用户自由文本，进内联 <script> 前统一走 _safe_json 转义（同 stats 页）。
     chart_trips = [{
         "id": r["id"],
@@ -69,6 +71,7 @@ def list():
         "trips/list.html",
         overview=overview,
         categories=CATEGORIES,
+        total_distance_km=total_distance_km,
         chart_trips_json=_safe_json(chart_trips),
         global_cat_json=_safe_json(global_cat),
     )
@@ -193,7 +196,8 @@ def detail(trip_id):
                  .first())
     return render_template("trips/detail.html", trip=trip, next_day_date=next_day_date,
                            prev_trip=prev_trip, next_trip=next_trip,
-                           stats=trip_stats(trip), categories=CATEGORIES)
+                           stats=trip_stats(trip), distance_km=trip_distance_km(trip),
+                           categories=CATEGORIES)
 
 
 @bp.route("/<int:trip_id>/days", methods=["POST"])
@@ -372,12 +376,26 @@ def stats_page(trip_id):
     # Top 10 消费含标题（自由文本），改在模板里用 Jinja 自动转义渲染，不进 JS。
     cat_labels = [k for k, v in s["by_category"].items() if v > 0]
     cat_values = [float(s["by_category"][k]) for k in cat_labels]
+    # 按金额降序排列，使默认显示消费最高的类别
+    cat_order = sorted(range(len(cat_labels)), key=lambda i: cat_values[i], reverse=True)
+    cat_labels = [cat_labels[i] for i in cat_order]
+    cat_values = [cat_values[i] for i in cat_order]
     day_labels = [d["date"].isoformat() for d in s["by_day"]]
     day_values = [float(d["total_cny"]) for d in s["by_day"]]
     cumulative_values = [float(d["total_cny"]) for d in s["cumulative"]]
     city_labels = [c["city"] for c in s["by_city"]]
     city_values = [float(c["cny"]) for c in s["by_city"]]
+    # 类别明细：Decimal → float 后序列化为 JS 安全 JSON
+    _cat_detail = {}
+    for cat, items in s["by_category_detail"].items():
+        _cat_detail[cat] = [
+            {"title": e["title"], "cny": float(e["cny"]),
+             "date": e["date"].isoformat(), "city": e["city"]}
+            for e in items
+        ]
+    cat_detail_json = _safe_json(_cat_detail)
     return render_template("trips/stats.html", trip=trip, stats=s,
+                           distance_km=trip_distance_km(trip),
                            cat_labels_json=_safe_json(cat_labels),
                            cat_values_json=_safe_json(cat_values),
                            day_labels_json=_safe_json(day_labels),
@@ -385,6 +403,7 @@ def stats_page(trip_id):
                            cumulative_values_json=_safe_json(cumulative_values),
                            city_labels_json=_safe_json(city_labels),
                            city_values_json=_safe_json(city_values),
+                           cat_detail_json=cat_detail_json,
                            total_cny_float=float(s["total_cny"]))
 
 
