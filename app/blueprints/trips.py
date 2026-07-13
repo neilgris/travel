@@ -194,8 +194,10 @@ def detail(trip_id):
                                  db.and_(Trip.start_date == trip.start_date, Trip.id > trip.id)))
                  .order_by(Trip.start_date.asc(), Trip.id.asc())
                  .first())
+    # 标题旁的旅程快速跳转下拉：全部旅程按开始日期倒序（与列表页一致）。
+    all_trips = Trip.query.order_by(Trip.start_date.desc(), Trip.id.desc()).all()
     return render_template("trips/detail.html", trip=trip, next_day_date=next_day_date,
-                           prev_trip=prev_trip, next_trip=next_trip,
+                           prev_trip=prev_trip, next_trip=next_trip, all_trips=all_trips,
                            stats=trip_stats(trip), distance_km=trip_distance_km(trip),
                            categories=CATEGORIES)
 
