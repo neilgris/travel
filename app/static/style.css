@@ -729,6 +729,7 @@ canvas { max-width: 100%; }
 .kpi-label { font-size: 0.82rem; color: var(--muted); letter-spacing: 0.03em; }
 .kpi-value { font-size: 1.7rem; font-weight: 700; color: var(--text); line-height: 1.1; }
 .kpi-flags { font-size: 1rem; letter-spacing: 0.12em; margin-left: 0.15rem; vertical-align: middle; }
+.kpi-sub { font-size: 0.78rem; color: var(--muted); line-height: 1.3; }
 
 .overview-grid {
   display: grid;

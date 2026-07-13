@@ -98,21 +98,25 @@ def trips_overview(trips):
     grand_total = Decimal("0.00")
     global_by_category = {cat: Decimal("0.00") for cat in CATEGORIES}
     cities = set()
+    city_names = {}
+    city_visits = Counter()
     countries = set()
-    country_visits = Counter()
+    country_cities = {}
     rows = []
     for t in trips:
         s = trip_stats(t)
         grand_total += s["total_cny"]
         for cat in CATEGORIES:
             global_by_category[cat] += s["by_category"][cat]
-        trip_countries = set()
+        trip_city_ids = set()
         for c in t.cities:
             cities.add(c.id)
+            city_names[c.id] = c.name
+            trip_city_ids.add(c.id)
             if c.country:
                 countries.add(c.country)
-                trip_countries.add(c.country)
-        country_visits.update(trip_countries)
+                country_cities.setdefault(c.country, set()).add(c.id)
+        city_visits.update(trip_city_ids)
         rows.append({
             "id": t.id,
             "title": t.title,
@@ -132,12 +136,20 @@ def trips_overview(trips):
     most_expensive = _card(rows[0]) if rows else None
     cheapest = _card(rows[-1]) if rows else None
 
+    # 到访城市 Top 5（按覆盖旅程数降序），排除北京（住处所在地，去掉才有对比意义）
+    top_cities = [
+        {"city": city_names[cid], "count": n}
+        for cid, n in sorted(city_visits.items(), key=lambda x: (-x[1], city_names[x[0]]))
+        if city_names[cid] != "北京"
+    ][:5]
+
     return {
         "grand_total": grand_total,
         "trip_count": len(rows),
         "city_count": len(cities),
+        "top_cities": top_cities,
         "country_count": len(countries),
-        "countries": sorted(countries, key=lambda c: (-country_visits[c], c)),
+        "countries": sorted(countries, key=lambda c: (-len(country_cities[c]), c)),
         "global_by_category": global_by_category,
         "most_expensive": most_expensive,
         "cheapest": cheapest,

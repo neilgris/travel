@@ -58,12 +58,15 @@
   <div class="card kpi">
     <span class="kpi-label">到访国家</span>
     <span class="kpi-value">{{ overview.country_count }}
-      <span class="kpi-flags">{% for c in overview.countries %}{{ c | country_flag }}{% endfor %}</span>
+      <span class="kpi-flags">{% for f in overview.countries | map('country_flag') | unique %}{{ f }}{% endfor %}</span>
     </span>
   </div>
   <div class="card kpi">
     <span class="kpi-label">到访城市</span>
     <span class="kpi-value">{{ overview.city_count }}</span>
+    {% if overview.top_cities %}
+    <span class="kpi-sub">{% for tc in overview.top_cities %}{{ tc.city }} {{ tc.count }}{% if not loop.last %} · {% endif %}{% endfor %}</span>
+    {% endif %}
   </div>
 </div>
 
@@ -122,6 +125,10 @@ Chart.defaults.color = '#55554e';
 Object.assign(Chart.defaults.plugins.tooltip, {
   backgroundColor: 'rgba(43,43,43,0.92)', padding: 10, cornerRadius: 8,
   titleFont: { weight: '600' }, displayColors: true, boxPadding: 4,
+  // tooltip 默认开启「跟随光标平滑滑动」动画：每次鼠标移动都会连续多帧重绘整块画布。
+  // 对比图画布高达 3000+px（32 趟旅程），每帧全画布重绘让 hover 明显卡顿（单帧曾飙到 20ms）。
+  // 关掉这个动画让 tooltip 瞬移，单帧从 ~20ms 降到 <1ms。
+  animation: false,
 });
 
 const fmt = v => '￥' + Number(v).toLocaleString('zh-CN',
@@ -228,6 +235,9 @@ new Chart(document.getElementById('compareChart'), {
     maintainAspectRatio: false,
     layout: { padding: { right: 96 } },   // 给柱尾总额留白
     animation: { duration: 800, easing: 'easeOutQuart' },
+    // hover 切换分类时元素高亮的过渡动画也会多帧重绘超高画布，一并瞬时化。
+    // （真正的卡顿主因是 tooltip 跟随动画，已在全局 Chart.defaults 里关掉。）
+    transitions: { active: { animation: { duration: 0 } } },
     onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
     onClick: (e, els) => {
       if (!els.length) return;
@@ -262,6 +272,35 @@ const gLabels = CATEGORIES.filter(c => (globalCat[c] || 0) > 0);
 const gValues = gLabels.map(c => globalCat[c]);
 if (gLabels.length) {
   const bases = gLabels.map(l => CAT_COLORS[l] || '#b0a99f');
+  // 每个扇形中点标注占比，太窄的扇形（<3%）跳过避免文字挤在一起
+  const sliceLabels = {
+    id: 'sliceLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      const total = gValues.reduce((a, b) => a + b, 0);
+      ctx.save();
+      ctx.shadowBlur = 0;
+      ctx.font = "700 12px system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillStyle = '#fff';
+      meta.data.forEach((arc, i) => {
+        const pct = total ? (gValues[i] / total * 100) : 0;
+        if (pct < 3) return;
+        const angle = (arc.startAngle + arc.endAngle) / 2;
+        const radius = (arc.innerRadius + arc.outerRadius) / 2;
+        const x = arc.x + Math.cos(angle) * radius;
+        const y = arc.y + Math.sin(angle) * radius;
+        const text = pct.toFixed(0) + '%';
+        ctx.strokeText(text, x, y);
+        ctx.fillText(text, x, y);
+      });
+      ctx.restore();
+    },
+  };
   new Chart(document.getElementById('globalCat'), {
     type: 'doughnut',
     data: { labels: gLabels,
@@ -283,7 +322,7 @@ if (gLabels.length) {
         } } },
       },
     },
-    plugins: [softShadow],
+    plugins: [softShadow, sliceLabels],
   });
 }
 </script>

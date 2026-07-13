@@ -45,6 +45,8 @@ def country_name_from_code(code):
 def flag_from_code(code):
     """ISO alpha-2 代码 → 国旗 emoji（两个字母各映射到区域指示符）。"""
     code = (code or "").strip().upper()
+    if code == "TW":
+        code = "CN"
     if len(code) != 2 or not code.isalpha():
         return ""
     return "".join(chr(0x1F1E6 + ord(ch) - ord("A")) for ch in code)
