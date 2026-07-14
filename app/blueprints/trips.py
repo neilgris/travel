@@ -210,7 +210,7 @@ def add_day(trip_id):
               city_id=int(request.form["city_id"]) if request.form.get("city_id") else None,
               diary=request.form.get("diary") or None)
     for f in request.files.getlist("images"):
-        rel = save_upload(f, current_app.config["UPLOAD_FOLDER"])
+        rel = save_upload(f, current_app.config["UPLOAD_FOLDER"], subdir=f"trips/{trip.id}")
         if rel:
             day.images.append(DayImage(path=rel))
     db.session.add(day)
@@ -253,7 +253,7 @@ def add_day_images(trip_id, day_id):
         abort(404)
     added = 0
     for f in request.files.getlist("images"):
-        rel = save_upload(f, current_app.config["UPLOAD_FOLDER"])
+        rel = save_upload(f, current_app.config["UPLOAD_FOLDER"], subdir=f"trips/{trip_id}")
         if rel:
             day.images.append(DayImage(path=rel))
             added += 1

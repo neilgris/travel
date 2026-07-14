@@ -44,7 +44,7 @@ def people():
             flash("名称不能为空")
             return redirect(url_for("settings.people"))
         photo = save_upload(request.files.get("photo"),
-                            current_app.config["UPLOAD_FOLDER"])
+                            current_app.config["UPLOAD_FOLDER"], subdir="people")
         db.session.add(Person(name=name, photo=photo))
         db.session.commit()
         flash("已添加同行人")
@@ -62,7 +62,7 @@ def edit_person(pid):
         return redirect(url_for("settings.people"))
     person.name = name
     photo = save_upload(request.files.get("photo"),
-                        current_app.config["UPLOAD_FOLDER"])
+                        current_app.config["UPLOAD_FOLDER"], subdir="people")
     if photo:
         person.photo = photo
     db.session.commit()

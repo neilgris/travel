@@ -5,7 +5,8 @@ from app.extensions import db as _db
 
 
 @pytest.fixture
-def app():
+def app(tmp_path):
+    # UPLOAD_FOLDER 指到临时目录，避免上传相关测试污染真实 uploads/ 目录。
     app = create_app({
         "TESTING": True,
         "SQLALCHEMY_DATABASE_URI": "sqlite://",
@@ -13,6 +14,7 @@ def app():
             "connect_args": {"check_same_thread": False},
             "poolclass": StaticPool,
         },
+        "UPLOAD_FOLDER": str(tmp_path / "uploads"),
     })
     yield app
 
