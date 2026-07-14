@@ -76,7 +76,7 @@
   <div class="day-photos">
     {% for img in day.images %}
     <span class="photo-thumb">
-      <img class="thumb" src="{{ url_for('main.uploads', filename=img.path.split('/')[-1]) }}">
+      <img class="thumb" src="{{ url_for('main.uploads', filename=img.path.split('uploads/', 1)[-1]) }}">
       <form method="post" class="photo-del-form"
             action="{{ url_for('trips.delete_day_image', trip_id=trip.id, day_id=day.id, image_id=img.id) }}"
             onsubmit="return confirm('删除这张照片？此操作不可恢复。');">

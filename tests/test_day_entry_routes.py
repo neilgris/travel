@@ -85,6 +85,20 @@ def test_add_day_images_attaches_to_day(client, app):
         assert len(imgs) == 1
 
 
+def test_detail_renders_subdir_image_url(client, app):
+    """详情页图片 URL 必须保留 uploads/ 后的子目录（D18 分目录后），否则 404。"""
+    tid, cid = make_trip(app)
+    with app.app_context():
+        did = Day(trip_id=tid, date=dt.date(2026, 1, 1), city_id=cid)
+        db.session.add(did)
+        db.session.commit()
+        db.session.add(DayImage(day_id=did.id, path=f"uploads/trips/{tid}/pic.jpg"))
+        db.session.commit()
+    body = client.get(f"/trips/{tid}").get_data(as_text=True)
+    assert f"/uploads/trips/{tid}/pic.jpg" in body
+    assert "/uploads/pic.jpg" not in body  # 不能塌成 basename
+
+
 def test_add_day_images_mismatched_trip_returns_404(client, app):
     import io
     tid, cid = make_trip(app)
