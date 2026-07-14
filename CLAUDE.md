@@ -13,6 +13,7 @@
 | **本文件 CLAUDE.md** | 项目概览、技术栈、如何运行、目录结构、约定 |
 | [docs/specs/2026-06-30-travel-journal-design.md](docs/specs/2026-06-30-travel-journal-design.md) | 需求与设计（数据模型、页面、统计的权威来源） |
 | [DECISIONS.md](DECISIONS.md) | 关键决策流水账（为什么这样选） |
+| [ROADMAP.md](ROADMAP.md) | 版本里程碑与功能清单（活文档，上线勾选，未完成项可随时捡起） |
 | [docs/plans/2026-06-30-travel-journal-v1.md](docs/plans/2026-06-30-travel-journal-v1.md) | 第一版实现计划（13 个 TDD 任务） |
 
 ## 技术栈
@@ -82,7 +83,8 @@ uploads/               图片（已 gitignore）；trips/{trip_id}/ 存旅程配
 ## 版本
 
 - **第一版**：记录流程 + 单旅程统计；旅程页仅列表概要。
-- **第二版（当前）**：首页 3D 地球路线展示（Globe.gl，用 Leg + City 坐标画弧线）。见 [docs/specs/2026-07-08-globe-home-design.md](docs/specs/2026-07-08-globe-home-design.md)。
+- **第二版（已上线）**：首页 3D 地球路线展示（Globe.gl，用 Leg + City 坐标画弧线）。见 [docs/specs/2026-07-08-globe-home-design.md](docs/specs/2026-07-08-globe-home-design.md)。
+- **第三版（进行中）**：回顾·统计·分享——旅程故事页、那年今日、人生足迹、年度报告、演示模式、静态导出等。清单与进度见 [ROADMAP.md](ROADMAP.md)。
 
 ## 如何运行
 
@@ -105,6 +107,7 @@ pytest -v            # 运行测试
 | 设计文档 spec | 状态快照 | 改**数据模型/页面/统计/需求**时同步；上线/删**功能**时改「功能总览」节 |
 | 本文件 CLAUDE.md | 入口/地图 | 改**结构/技术栈/怎么跑**时 |
 | DECISIONS.md | 追加日志 | 有**新取舍/踩坑**时**追加**（不改旧条目） |
+| ROADMAP.md | 活清单 | **版本规划变化**时改；功能**上线**时勾选；只记做什么，不记怎么做 |
 | docs/plans/* | 一次性 | 计划做完即归档，**不再维护** |
 
 > 改 bug / 调样式 / 加测试 → 只靠 commit message 记录，**不碰文档**。
