@@ -108,7 +108,27 @@ def test_map_no_legs_only_day_cities(session):
 
     m = story_data(t)["map"]
     assert m["route"] == []
+    # 无 Leg 时 route 仍为空，但当天城市要并入 cities 供地图画点（spec §6）。
+    # 第二天无城市，不应进 cities。
+    assert {c["name"] for c in m["cities"]} == {"东京"}
     assert m["day_cities"] == [{"lat": 35.6, "lng": 139.7}, None]
+
+
+def test_map_off_route_day_city_included(session):
+    """有 Leg 的旅程里，某天所在城市不是任何 Leg 端点，也要出现在 cities 里（供高亮回归）。"""
+    t = _mk_trip(session)
+    bj = City(name="北京", latitude=39.9, longitude=116.4)
+    tk = City(name="东京", latitude=35.6, longitude=139.7)
+    osaka = City(name="大阪", latitude=34.7, longitude=135.5)
+    session.add_all([bj, tk, osaka])
+    t.legs = [Leg(seq=1, from_city=bj, to_city=tk, transport_mode="飞机")]
+    t.days = [Day(date=dt.date(2026, 1, 1), city=tk),
+              Day(date=dt.date(2026, 1, 2), city=osaka)]  # 大阪不是任何 Leg 端点
+    session.commit()
+
+    m = story_data(t)["map"]
+    assert {c["name"] for c in m["cities"]} == {"北京", "东京", "大阪"}
+    assert m["day_cities"] == [{"lat": 35.6, "lng": 139.7}, {"lat": 34.7, "lng": 135.5}]
 
 
 def test_story_route_renders(client, app):

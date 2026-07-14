@@ -52,6 +52,10 @@ def _map_data(trip, sorted_days):
     day_cities = []
     for d in sorted_days:
         p = _point(d.city)
+        # 各天城市也画成点（含无 Leg 的旅程、以及不在任何 Leg 端点上的天），按名去重。
+        if p and p["name"] not in seen:
+            seen.add(p["name"])
+            cities.append(p)
         day_cities.append({"lat": p["lat"], "lng": p["lng"]} if p else None)
     return {"route": route, "cities": cities, "day_cities": day_cities}
 
