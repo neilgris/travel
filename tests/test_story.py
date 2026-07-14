@@ -2,7 +2,7 @@ import datetime as dt
 from decimal import Decimal
 
 from app.models.city import City
-from app.models.trip import Trip, TripCurrency
+from app.models.trip import Trip, TripCurrency, Leg
 from app.models.day import Day, Entry, DayImage
 from app.services.story import story_data
 
@@ -65,3 +65,47 @@ def test_day_without_entries_or_diary(session):
     assert day["images"] == []
     assert day["spend_cny"] == Decimal("0.00")
     assert day["highlights"] == []
+
+
+def test_map_route_and_cities(session):
+    t = _mk_trip(session)
+    bj = City(name="北京", latitude=39.9, longitude=116.4)
+    tk = City(name="东京", latitude=35.6, longitude=139.7)
+    session.add_all([bj, tk])
+    t.legs = [Leg(seq=1, from_city=bj, to_city=tk, transport_mode="飞机")]
+    t.days = [Day(date=dt.date(2026, 1, 1), city=tk)]
+    session.commit()
+
+    m = story_data(t)["map"]
+    assert m["route"] == [{"from": {"lat": 39.9, "lng": 116.4, "name": "北京"},
+                           "to": {"lat": 35.6, "lng": 139.7, "name": "东京"}}]
+    assert {c["name"] for c in m["cities"]} == {"北京", "东京"}
+    assert m["day_cities"] == [{"lat": 35.6, "lng": 139.7}]
+
+
+def test_map_skips_missing_coords(session):
+    t = _mk_trip(session)
+    bj = City(name="北京", latitude=39.9, longitude=116.4)
+    ghost = City(name="无坐标城")  # 无经纬度
+    session.add_all([bj, ghost])
+    t.legs = [Leg(seq=1, from_city=bj, to_city=ghost, transport_mode="火车")]
+    t.days = [Day(date=dt.date(2026, 1, 1), city=ghost)]
+    session.commit()
+
+    m = story_data(t)["map"]
+    assert m["route"] == []                 # 有一端缺坐标 → 整段跳过
+    assert m["cities"] == []
+    assert m["day_cities"] == [None]        # 该天城市缺坐标 → 高亮跳过
+
+
+def test_map_no_legs_only_day_cities(session):
+    t = _mk_trip(session)
+    tk = City(name="东京", latitude=35.6, longitude=139.7)
+    session.add(tk)
+    t.days = [Day(date=dt.date(2026, 1, 1), city=tk),
+              Day(date=dt.date(2026, 1, 2))]  # 第二天无城市
+    session.commit()
+
+    m = story_data(t)["map"]
+    assert m["route"] == []
+    assert m["day_cities"] == [{"lat": 35.6, "lng": 139.7}, None]

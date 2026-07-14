@@ -13,6 +13,13 @@ def _image_subpath(path):
     return path.split("uploads/", 1)[-1] if "uploads/" in path else path
 
 
+def _point(city):
+    """城市有经纬度才算有效，否则 None。"""
+    if city is None or city.latitude is None or city.longitude is None:
+        return None
+    return {"lat": city.latitude, "lng": city.longitude, "name": city.name}
+
+
 def _day_content(day, rate_map):
     spend = Decimal("0.00")
     entries = []
@@ -31,8 +38,26 @@ def _day_content(day, rate_map):
     }
 
 
+def _map_data(trip, sorted_days):
+    route, cities, seen = [], [], set()
+    for leg in trip.legs:  # Trip.legs 已按 seq 排序
+        frm, to = _point(leg.from_city), _point(leg.to_city)
+        if frm is None or to is None:
+            continue
+        route.append({"from": frm, "to": to})
+        for p in (frm, to):
+            if p["name"] not in seen:
+                seen.add(p["name"])
+                cities.append(p)
+    day_cities = []
+    for d in sorted_days:
+        p = _point(d.city)
+        day_cities.append({"lat": p["lat"], "lng": p["lng"]} if p else None)
+    return {"route": route, "cities": cities, "day_cities": day_cities}
+
+
 def story_data(trip):
     rate_map = {c.currency_code: Decimal(c.rate) for c in trip.currencies}
-    days = [_day_content(d, rate_map)
-            for d in sorted(trip.days, key=lambda d: d.date)]
-    return {"days": days, "map": {}}
+    sorted_days = sorted(trip.days, key=lambda d: d.date)
+    days = [_day_content(d, rate_map) for d in sorted_days]
+    return {"days": days, "map": _map_data(trip, sorted_days)}
