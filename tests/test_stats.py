@@ -1,6 +1,6 @@
 import datetime as dt
 from decimal import Decimal
-from app.models.trip import Trip, TripCurrency
+from app.models.trip import Trip, TripCurrency, Leg
 from app.models.city import City
 from app.models.day import Day, Entry
 from app.services import stats
@@ -56,3 +56,35 @@ def test_trip_stats(session):
     shop_detail = s["by_category_detail"]["购物"]
     assert len(shop_detail) == 1
     assert shop_detail[0]["title"] == "手办"
+
+
+def test_trips_overview_top_cities(session):
+    def city(name):
+        c = City.query.filter_by(name=name).first()
+        if not c:
+            c = City(name=name)
+            session.add(c)
+        return c
+
+    def trip_via(idx, to_name):
+        t = Trip(title=f"t{idx}", start_date=dt.date(2026, 1, 1), end_date=dt.date(2026, 1, 1))
+        t.legs = [Leg(seq=1, from_city=city("北京"), to_city=city(to_name), transport_mode="飞机")]
+        session.add(t)
+        return t
+
+    # 北京 出现 12 次(每趟必经)理应被排除；其余城市次数：上海4/香港3/东京2/大阪2/台北1/首尔1
+    dests = (["上海"] * 4 + ["香港"] * 3 + ["东京"] * 2 + ["大阪"] * 2 + ["台北"] + ["首尔"])
+    trips = [trip_via(i, name) for i, name in enumerate(dests)]
+    session.commit()
+
+    overview = stats.trips_overview(trips)
+    # 北京虽出现在全部 12 趟里，但被排除在外
+    assert "北京" not in [c["city"] for c in overview["top_cities"]]
+    # 按次数降序，同次数按城市名排序，取前 5
+    assert overview["top_cities"] == [
+        {"city": "上海", "count": 4},
+        {"city": "香港", "count": 3},
+        {"city": "东京", "count": 2},
+        {"city": "大阪", "count": 2},
+        {"city": "台北", "count": 1},
+    ]
