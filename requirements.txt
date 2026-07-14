@@ -1,6 +1,8 @@
 Flask>=3.0
 Flask-SQLAlchemy>=3.1
 requests>=2.31
+Pillow>=10.0
+pillow-heif>=0.16
 pytest>=8.0
 xlrd>=2.0
 xlwt>=1.3

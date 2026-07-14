@@ -251,14 +251,25 @@ def add_day_images(trip_id, day_id):
     day = db.get_or_404(Day, day_id)
     if day.trip_id != trip_id:
         abort(404)
-    added = 0
+    new_images = []
     for f in request.files.getlist("images"):
         rel = save_upload(f, current_app.config["UPLOAD_FOLDER"], subdir=f"trips/{trip_id}")
         if rel:
-            day.images.append(DayImage(path=rel))
-            added += 1
+            img = DayImage(path=rel)
+            day.images.append(img)
+            new_images.append(img)
     db.session.commit()
-    flash(f"已添加 {added} 张照片" if added else "未选择照片")
+    # 拖拽/异步上传（fetch 带 X-Requested-With）返回新图 id + URL，供前端就地插入；
+    # 普通表单 POST 仍走 flash + 重定向，兜底行为不变。
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return {"ok": True, "images": [
+            {"id": img.id,
+             "url": url_for("main.uploads", filename=img.path.split("uploads/", 1)[-1]),
+             "delete_url": url_for("trips.delete_day_image",
+                                   trip_id=trip_id, day_id=day_id, image_id=img.id)}
+            for img in new_images
+        ]}
+    flash(f"已添加 {len(new_images)} 张照片" if new_images else "未选择照片")
     return redirect(url_for("trips.detail", trip_id=trip_id))
 
 

@@ -72,7 +72,6 @@
     </form>
   </div>
   {% if day.diary %}<p><em>{{ day.diary }}</em></p>{% endif %}
-  {% if day.images %}
   <div class="day-photos">
     {% for img in day.images %}
     <span class="photo-thumb">
@@ -85,7 +84,6 @@
     </span>
     {% endfor %}
   </div>
-  {% endif %}
   <div class="entry-list" data-reorder-url="{{ url_for('trips.reorder_entries', trip_id=trip.id, day_id=day.id) }}">
   {% for e in day.entries %}
   <div class="entry-row" draggable="true" data-entry-id="{{ e.id }}">
@@ -134,11 +132,15 @@
     <button class="btn btn-sm" type="submit">保存</button>
   </form></details>
   <details><summary>+ 添加照片</summary>
-  <form method="post" enctype="multipart/form-data"
-        action="{{ url_for('trips.add_day_images', trip_id=trip.id, day_id=day.id) }}">
-    <input type="file" name="images" accept="image/*" multiple required>
-    <button class="btn" type="submit">上传照片</button>
-  </form></details>
+  <div class="photo-drop"
+       data-upload-url="{{ url_for('trips.add_day_images', trip_id=trip.id, day_id=day.id) }}">
+    <p class="photo-drop-hint">把照片从「照片」App 拖到这里（HEIC 会自动转 JPEG），或</p>
+    <form method="post" enctype="multipart/form-data"
+          action="{{ url_for('trips.add_day_images', trip_id=trip.id, day_id=day.id) }}">
+      <input type="file" name="images" accept="image/*,.heic,.heif" multiple required>
+      <button class="btn" type="submit">上传照片</button>
+    </form>
+  </div></details>
 </div>
 {% endfor %}
 
@@ -167,4 +169,5 @@
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='entry-reorder.js') }}"></script>
+<script src="{{ url_for('static', filename='photo-drop.js') }}"></script>
 {% endblock %}

@@ -99,6 +99,71 @@ def test_detail_renders_subdir_image_url(client, app):
     assert "/uploads/pic.jpg" not in body  # 不能塌成 basename
 
 
+def test_add_day_images_ajax_returns_json(client, app):
+    # 异步（fetch）上传：带 X-Requested-With 时返回新图的 id + url，供前端插进 .day-photos。
+    import io
+    tid, cid = make_trip(app)
+    client.post(f"/trips/{tid}/days", data={"date": "2026-01-01", "city_id": str(cid)})
+    with app.app_context():
+        did = Day.query.filter_by(trip_id=tid).one().id
+    resp = client.post(
+        f"/trips/{tid}/days/{did}/images",
+        data={"images": (io.BytesIO(b"fakejpeg"), "photo.jpg")},
+        content_type="multipart/form-data",
+        headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["ok"] is True
+    assert len(payload["images"]) == 1
+    with app.app_context():
+        img = DayImage.query.filter_by(day_id=did).one()
+        assert payload["images"][0]["id"] == img.id
+        assert payload["images"][0]["url"].endswith(img.path.split("uploads/", 1)[-1])
+        assert "/uploads/" in payload["images"][0]["url"]
+
+
+def test_add_day_images_accepts_heic_via_request(client, app):
+    # 端到端：经真实请求流上传 HEIC，应成功转 JPEG（不因 EXIF 解析崩 500）。
+    import io
+    import pillow_heif
+    from PIL import Image
+    pillow_heif.register_heif_opener()
+    tid, cid = make_trip(app)
+    client.post(f"/trips/{tid}/days", data={"date": "2026-01-01", "city_id": str(cid)})
+    with app.app_context():
+        did = Day.query.filter_by(trip_id=tid).one().id
+    img = Image.new("RGB", (4, 2), (10, 20, 30))
+    buf = io.BytesIO()
+    exif = Image.Exif()
+    exif[0x0112] = 6  # Orientation
+    img.save(buf, format="HEIF", exif=exif.tobytes())
+    buf.seek(0)
+    resp = client.post(
+        f"/trips/{tid}/days/{did}/images",
+        data={"images": (buf, "photo.heic")},
+        content_type="multipart/form-data",
+        headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["ok"] is True
+    assert len(payload["images"]) == 1
+    assert payload["images"][0]["url"].endswith(".jpg")
+
+
+def test_add_day_images_form_post_still_redirects(client, app):
+    # 兜底的普通表单 POST（无 X-Requested-With）行为不变：重定向回详情页。
+    import io
+    tid, cid = make_trip(app)
+    client.post(f"/trips/{tid}/days", data={"date": "2026-01-01", "city_id": str(cid)})
+    with app.app_context():
+        did = Day.query.filter_by(trip_id=tid).one().id
+    resp = client.post(
+        f"/trips/{tid}/days/{did}/images",
+        data={"images": (io.BytesIO(b"fakejpeg"), "photo.jpg")},
+        content_type="multipart/form-data")
+    assert resp.status_code == 302
+
+
 def test_add_day_images_mismatched_trip_returns_404(client, app):
     import io
     tid, cid = make_trip(app)

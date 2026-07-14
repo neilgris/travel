@@ -416,6 +416,23 @@ select {
 .photo-thumb:hover .photo-del { opacity: 1; }
 .photo-thumb .photo-del:hover { background: var(--accent); }
 
+/* 空相册（还没照片时）不占位。 */
+.day-photos:empty { display: none; }
+
+/* ---- 照片拖拽上传区 ---- */
+.photo-drop {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.8rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+.photo-drop.dragover {
+  border-color: var(--primary);
+  background: var(--ring);
+}
+.photo-drop.uploading { opacity: 0.6; pointer-events: none; }
+.photo-drop-hint { margin: 0 0 0.4rem; color: var(--muted); font-size: 0.9rem; }
+
 /* ---- 每一天卡片头部：标题 + 编辑/删除操作同排 ---- */
 .day-head {
   display: flex;

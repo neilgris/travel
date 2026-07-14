@@ -275,3 +275,14 @@
 - **新增根目录 `ROADMAP.md` 作为第五类文档（活清单）**：按大版本分节，每个功能一个勾选项，上线即勾选；未完成项跨迭代保留，新想法进「候选池」。更新时机：版本规划变化、功能上线勾选。它只管「做什么、做没做」，**不管怎么做**——每个功能动手前照旧出各自的 spec 与 plan。
 - **第三版范围**：核心枢纽是**旅程故事页**（按天沉浸式回放，一套模板同时作为回顾浏览/全屏演示/静态导出的底座，投入产出比最高故最先做）；另有那年今日、全文搜索（FTS5）、人生足迹总览、年度报告、全屏演示模式、静态 HTML 导出、局域网只读+移动端。完整清单与建议顺序见 [ROADMAP.md](ROADMAP.md)。
 - **修订第一版 YAGNI 两条**：「跨旅程全局统计」实际已被跨旅程消费看板部分实现，第三版继续扩展（人生足迹/年度报告），从「明确不做」移除；「对外分享」收窄为**不做公网发布/评论/账号**，本地形态的分享（静态导出、局域网只读、当面演示）进入第三版范围。设计文档第 7 节已同步。
+
+## 2026-07-14 · D20：照片拖拽上传 + HEIC 自动转 JPEG
+
+**背景**：作者照片都在 Mac「照片」App 里，`<input type=file>` 无法从密封包 `photoslibrary` 按张选图（已确认走不通）；可行路子是把「照片」App 里的图直接**拖到网页**，系统会给出真实文件，但常是 HEIC——Chrome 不认 HEIC，服务端也只收 png/jpg/jpeg/gif/webp。
+
+**决策**：
+- **`save_upload` 内建 HEIC/HEIF 转码**：新依赖 `Pillow` + `pillow-heif`（`pillow_heif.register_heif_opener()` 注册进 Pillow 后 `Image.open` 直接能读 HEIC）。HEIC/HEIF 走 `ImageOps.exif_transpose` 按 EXIF 转正后存为 JPEG（`.jpg`），非 HEIC 原样保存不重新编码。
+- **拖拽区做成异步局部上传**：`add_day_images` 路由按 `X-Requested-With: XMLHttpRequest` 区分——异步请求返回 JSON（新图 id/url/delete_url），前端 [photo-drop.js](app/static/photo-drop.js) 就地插入 `.day-photos`，不刷新页面；普通表单 POST 行为不变（重定向 + flash），作为拖拽失败/不支持时的兜底。
+- **前端不引入第三方库**：原生 `dragenter/dragover/drop` + `fetch`，与已有的 `entry-reorder.js` 拖拽排序风格保持一致。
+
+**已知缺陷（未修，留待后续）**：真机导出的 HEIC 若带某些 EXIF 方向标签，`ImageOps.exif_transpose` 在读 `getexif()` 时会抛 `SyntaxError: not a TIFF file`，导致该请求 500。诡异之处：同样字节内容，走 pytest 的 `FileStorage(BytesIO(...))` 或独立脚本用 `SpooledTemporaryFile` 复现均正常，只有真实浏览器 fetch 的 multipart 上传会触发——尚未定位到 werkzeug 解析出的文件流与 pillow-heif 写回 EXIF 段之间具体的差异根因。已验证：常规 JPEG（非 HEIC）拖拽全程正常；本次先合并，此 bug 留到下次专门排查修复。
