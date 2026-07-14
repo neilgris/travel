@@ -68,7 +68,7 @@ app/
 run.py                 启动入口
 tests/                 pytest，每个模块对应一个测试文件
 instance/travel.db     SQLite（首次启动自动建，已 gitignore）
-uploads/               图片（已 gitignore）
+uploads/               图片（已 gitignore）；trips/{trip_id}/ 存旅程配图、people/ 存同行人照片
 ```
 
 ## 约定
@@ -76,7 +76,7 @@ uploads/               图片（已 gitignore）
 - **TDD**：先写失败测试再实现；`tests/` 与模块一一对应。
 - **分层**：路由进 `blueprints/`，业务逻辑进 `services/`，`models/` 只管数据；蓝图里不写复杂逻辑。
 - **金额**：一律 `Decimal`，换算 `人民币 = 外币 ÷ 汇率`，两位四舍五入。
-- **图片**：存 `uploads/`，库里只存路径。
+- **图片**：存 `uploads/`，按归属分目录——旅程配图落 `uploads/trips/{trip_id}/`，同行人照片落 `uploads/people/`；库里只存相对路径（含子目录）。
 - **文档**：改动按下方「文档同步纪律」与 [DECISIONS.md](DECISIONS.md) D6 的规则同步。
 
 ## 版本

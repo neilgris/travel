@@ -254,3 +254,15 @@
 - **权衡**：刚过 `DETAIL_ZOOM`（视口约含整块大陆）时多数要素仍可见、裁剪帮不上忙，该带**主动拖拽** ~80ms/帧（约 12fps）；静态观看始终瞬时。作者已确认接受此权衡。
 
 **踩坑**：world-atlas `land-*.json` 的 `objects.land` 是 **GeometryCollection**，`topojson.feature(...)` 返回 **FeatureCollection**（无 `.geometry`）；其内是**单个 MultiPolygon**，需取 `.features[0].geometry.coordinates` 再按多边形拆分，否则 `.geometry.coordinates` 报错（且在 Promise 里被吞、无控制台报错，表现为详情静默不出）。
+
+## 2026-07-13 · D18：上传图片按归属分目录（替代 uploads/ 单层平铺）
+
+**背景**：所有上传的图片（旅程配图 + 同行人照片）都用随机文件名平铺在 `uploads/` 根目录下，传多了很乱，也难按旅程归档。检查现状时发现更严重的：`uploads/` 里 50 个文件只有 3 个被 DB 引用，其余 47 个是孤儿——大量来自测试污染（见下"踩坑"）。
+
+**决策**：
+- **按归属分子目录**：旅程配图落 `uploads/trips/{trip_id}/`，同行人照片落 `uploads/people/`。`save_upload(file, folder, subdir=...)` 新增 `subdir` 参数（仅服务端内部拼接，不接受用户传值），库里存的相对路径含子目录（如 `uploads/trips/4/xxx.jpg`）。
+- **`delete_upload` 保留子路径**：原实现只取 `basename`（历史上是防穿越的粗暴手段），改为剥掉 `uploads/` 前缀后保留子目录，再用 `os.path.commonpath` 规范化校验必须落在 `upload_folder` 内（防路径穿越）。兼容旧的平铺路径。
+- **服务路由无需改**：`/uploads/<path:filename>` 本就吃子路径，`send_from_directory` 自带越界保护。
+- **一次性清理**：备份 DB 后，删除全部 `DayImage` 行 + 清空 `uploads/`（含 47 个孤儿），作者后续重新上传。
+
+**踩坑（测试隔离）**：`conftest.py` 的 `app` fixture 只覆盖了 DB URI，**没覆盖 `UPLOAD_FOLDER`**，导致上传相关的蓝图测试把图片写进**真实** `uploads/` 目录——这正是那 47 个孤儿文件的主要来源。修复：fixture 用 pytest `tmp_path` 把 `UPLOAD_FOLDER` 指到临时目录。修复后全量测试跑完 `uploads/` 保持为空。
