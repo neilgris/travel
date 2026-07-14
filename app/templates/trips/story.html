@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ trip.title }} · 故事{% endblock %}
+{% block main_class %}story-main{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='story.css') }}">
+
+<header class="story-hero">
+  <h1>{{ trip.title }}</h1>
+  <p class="story-meta">
+    {{ trip.start_date }} ~ {{ trip.end_date }}
+    {% if trip.people %}· 同行：{{ trip.people | map(attribute='name') | join('、') }}{% endif %}
+    · 里程 {{ '{:,}'.format(distance_km) }} km
+    · 总花费 ￥{{ total_cny }}
+  </p>
+  <p class="story-links">
+    <a href="{{ url_for('trips.detail', trip_id=trip.id) }}">← 返回详情</a>
+    <a href="{{ url_for('trips.stats_page', trip_id=trip.id) }}">查看统计 →</a>
+  </p>
+</header>
+
+{% if not story.days %}
+<p class="story-empty">这段旅程还没有记录。
+  <a href="{{ url_for('trips.detail', trip_id=trip.id) }}">去详情页添加 →</a></p>
+{% else %}
+<div class="story-body">
+  <aside class="story-map-col">
+    <div id="story-map" data-map='{{ story.map | tojson }}'></div>
+  </aside>
+  <div class="story-days">
+    {% for day in story.days %}
+    {% set has_content = day.journal or day.images %}
+    <section class="story-day {% if not has_content %}story-day-slim{% endif %}"
+             data-day-index="{{ loop.index0 }}">
+      <h2 class="story-day-head">
+        <span class="story-day-n">Day {{ loop.index }}</span>
+        {{ day.date }}{% if day.city_name %} · {{ day.city_name }}{% endif %}
+      </h2>
+      {% if day.journal %}<div class="story-journal">{{ day.journal | replace('\n', '<br>') | safe }}</div>{% endif %}
+      {% if day.images %}
+      <div class="story-photos">
+        {% for src in day.images %}
+        <img class="story-photo" loading="lazy"
+             src="{{ url_for('main.uploads', filename=src) }}" alt="">
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if day.spend_cny > 0 %}
+      <div class="story-spend">
+        <span class="story-spend-total">今日 ￥{{ day.spend_cny }}</span>
+        {% for h in day.highlights %}
+        <span class="story-hl">{{ h.category }} · {{ h.title }} ￥{{ h.cny }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/d3.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/topojson-client.min.js') }}"></script>
+<script src="{{ url_for('static', filename='story-map.js') }}"></script>
+{% endblock %}

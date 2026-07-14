@@ -27,6 +27,7 @@
    总花费 ￥{{ stats.total_cny }}</p>
 {% if trip.notes %}<p>{{ trip.notes }}</p>{% endif %}
 <p>同行：{{ trip.people | map(attribute='name') | join('、') or '—' }}
+   <a href="{{ url_for('trips.story', trip_id=trip.id) }}">故事页 →</a>
    <a href="{{ url_for('trips.stats_page', trip_id=trip.id) }}">查看统计 →</a>
    <a href="{{ url_for('trips.import_expenses', trip_id=trip.id) }}">导入记账文件</a>
    <a href="{{ url_for('trips.edit', trip_id=trip.id) }}">编辑旅程</a>

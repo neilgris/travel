@@ -14,6 +14,7 @@ from app.services.flags import country_name_from_code
 from app.services.exchange import fetch_rate
 from app.services.stats import trip_stats, trips_overview
 from app.services.distance import trip_distance_km
+from app.services.story import story_data
 from app.services.uploads import save_upload, delete_upload
 from app.services.import_expense import parse_rows, match_row
 
@@ -200,6 +201,15 @@ def detail(trip_id):
                            prev_trip=prev_trip, next_trip=next_trip, all_trips=all_trips,
                            stats=trip_stats(trip), distance_km=trip_distance_km(trip),
                            categories=CATEGORIES)
+
+
+@bp.route("/<int:trip_id>/story")
+def story(trip_id):
+    trip = db.get_or_404(Trip, trip_id)
+    return render_template("trips/story.html", trip=trip,
+                           story=story_data(trip),
+                           distance_km=trip_distance_km(trip),
+                           total_cny=trip_stats(trip)["total_cny"])
 
 
 @bp.route("/<int:trip_id>/days", methods=["POST"])
