@@ -109,3 +109,49 @@ def test_map_no_legs_only_day_cities(session):
     m = story_data(t)["map"]
     assert m["route"] == []
     assert m["day_cities"] == [{"lat": 35.6, "lng": 139.7}, None]
+
+
+def test_story_route_renders(client, app):
+    from app.extensions import db
+    with app.app_context():
+        c = City(name="东京", latitude=35.6, longitude=139.7)
+        t = Trip(title="日本行", start_date=dt.date(2026, 1, 1), end_date=dt.date(2026, 1, 1))
+        t.currencies = [TripCurrency(currency_code="JPY", rate=Decimal("20"))]
+        d = Day(date=dt.date(2026, 1, 1), city=c, diary="抵达东京")
+        d.entries = [Entry(category="吃饭", title="拉面", amount=Decimal("2000"),
+                           currency_code="JPY")]
+        t.days = [d]
+        db.session.add(t)
+        db.session.commit()
+        tid = t.id
+    resp = client.get(f"/trips/{tid}/story")
+    body = resp.get_data(as_text=True)
+    assert resp.status_code == 200
+    assert "抵达东京" in body      # 日记
+    assert "拉面" in body          # 亮点条目
+    assert "100" in body           # 当日花费 2000/20=100 CNY
+
+
+def test_story_route_is_readonly(client, app):
+    from app.extensions import db
+    with app.app_context():
+        t = Trip(title="t", start_date=dt.date(2026, 1, 1), end_date=dt.date(2026, 1, 1))
+        t.days = [Day(date=dt.date(2026, 1, 1), diary="日记")]
+        db.session.add(t)
+        db.session.commit()
+        tid = t.id
+    body = client.get(f"/trips/{tid}/story").get_data(as_text=True)
+    assert "<form" not in body     # 只读：无任何表单/编辑控件
+
+
+def test_story_route_empty_when_no_days(client, app):
+    from app.extensions import db
+    with app.app_context():
+        t = Trip(title="空行", start_date=dt.date(2026, 1, 1), end_date=dt.date(2026, 1, 1))
+        db.session.add(t)
+        db.session.commit()
+        tid = t.id
+    resp = client.get(f"/trips/{tid}/story")
+    body = resp.get_data(as_text=True)
+    assert resp.status_code == 200
+    assert "还没有记录" in body    # 空态引导语
