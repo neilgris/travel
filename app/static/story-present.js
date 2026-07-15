@@ -57,6 +57,17 @@
     return slides;
   }
 
+  // ---------- 节奏（毫秒）：正文按日记字数伸缩，结尾停住 ----------
+  function durationOf(s) {
+    if (s.type === "opening") return 5000;
+    if (s.type === "fly") return 3200;
+    if (s.type === "photos") return 5000;
+    if (s.type === "ending") return Infinity;
+    if (s.compact) return 3000;
+    const chars = (s.journal || "").replace(/<[^>]*>/g, "").length;
+    return Math.min(15000, 6000 + chars * 50);
+  }
+
   // ---------- overlay ----------
   let overlay, slideEl, globeLayer, minimapEl, minimap, hudCaption, hudBar, pausedEl;
   function buildOverlay() {
@@ -121,25 +132,50 @@
     return s.dayIndex != null ? "Day " + (s.dayIndex + 1) + " · " + pos : pos;
   }
 
-  // ---------- 导航（Task 4 挂自动播放） ----------
-  let slides = [], idx = 0, active = false;
+  // ---------- 播放引擎：rAF 主循环，elapsed 到点翻页 ----------
+  let slides = [], idx = 0, active = false, paused = false;
+  let elapsed = 0, lastT = 0, rafId = 0;
+
+  function loop(t) {
+    if (!active) return;
+    rafId = requestAnimationFrame(loop);
+    if (paused) { lastT = t; return; }
+    elapsed += t - lastT; lastT = t;
+    const d = durationOf(slides[idx]);
+    const frac = d === Infinity ? 0 : Math.min(1, elapsed / d);
+    hudBar.style.width = ((idx + frac) / slides.length * 100) + "%";  // 总进度
+    if (elapsed >= d) next();
+  }
+
   function show(i) {
     idx = Math.max(0, Math.min(slides.length - 1, i));
-    resetTimer();
+    elapsed = 0;
     renderSlide(slides[idx]);
     onSlideStart(slides[idx]);
   }
   function next() { if (idx < slides.length - 1) show(idx + 1); }
   function prev() { show(idx - 1); }
-  // 占位：Task 4 覆写计时；Task 5 覆写地球行为。
-  function resetTimer() {}
+  function setPaused(p) {
+    paused = p;
+    pausedEl.style.display = paused ? "" : "none";
+  }
+  // 占位：Task 5 覆写地球行为。
   function onSlideStart(s) {
     if (s.type === "fly") show(idx + 1);                 // 地球未接入前：过场直切
   }
   function globeShow() {}
 
+  // ---------- 光标：3 秒不动就藏 ----------
+  let cursorTimer = 0;
+  function wakeCursor() {
+    overlay.classList.remove("sp-nocursor");
+    clearTimeout(cursorTimer);
+    cursorTimer = setTimeout(() => overlay.classList.add("sp-nocursor"), 3000);
+  }
+
   function onKey(e) {
     if (e.key === "Escape") { exit(); return; }
+    if (e.key === " ") { e.preventDefault(); setPaused(!paused); return; }
     if (e.key === "ArrowRight") next();
     if (e.key === "ArrowLeft") prev();
     if (e.key === "Enter" && slides[idx].type === "ending") show(0);
@@ -157,10 +193,18 @@
     document.addEventListener("fullscreenchange", onFsChange);
     if (overlay.requestFullscreen) overlay.requestFullscreen().catch(() => {});
     show(0);
+    setPaused(false);
+    wakeCursor();
+    overlay.addEventListener("mousemove", wakeCursor);
+    lastT = performance.now();
+    rafId = requestAnimationFrame(loop);
   }
   function exit() {
     if (!active) return;
     active = false;
+    cancelAnimationFrame(rafId);
+    clearTimeout(cursorTimer);
+    overlay.removeEventListener("mousemove", wakeCursor);
     document.removeEventListener("keydown", onKey);
     document.removeEventListener("fullscreenchange", onFsChange);
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
