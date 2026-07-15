@@ -95,7 +95,6 @@
           (globeLayer);
         world.controls().enabled = false;                // 演示不许拖球
         sizeGlobe();
-        window.addEventListener("resize", sizeGlobe);
         globeReady = true;
       } catch (e) { globeReady = false; }
     })();
@@ -267,6 +266,7 @@
   }
 
   async function start() {
+    if (active) return;                                  // 防重入：加载期间二次点击会跑出双 rAF 链
     if (!overlay) buildOverlay();
     overlay.style.display = "";
     slides = buildSlides();
@@ -280,6 +280,7 @@
     setPaused(false);
     wakeCursor();
     overlay.addEventListener("mousemove", wakeCursor);
+    window.addEventListener("resize", sizeGlobe);
     lastT = performance.now();
     rafId = requestAnimationFrame(loop);
   }
@@ -289,6 +290,7 @@
     cancelAnimationFrame(rafId);
     clearTimeout(cursorTimer);
     overlay.removeEventListener("mousemove", wakeCursor);
+    window.removeEventListener("resize", sizeGlobe);
     document.removeEventListener("keydown", onKey);
     document.removeEventListener("fullscreenchange", onFsChange);
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
