@@ -395,7 +395,8 @@ select {
 
 /* ---- 每日照片 ---- */
 .day-photos { display: flex; flex-wrap: wrap; gap: 4px; margin: 0.3rem 0 0.6rem; }
-.photo-thumb { position: relative; display: inline-block; line-height: 0; }
+.photo-thumb { position: relative; display: inline-block; line-height: 0; cursor: grab; }
+.photo-thumb.dragging { opacity: 0.5; }
 .photo-thumb .thumb { margin: 0; display: block; }
 .photo-thumb .photo-del-form { position: absolute; top: 3px; right: 3px; margin: 0; width: auto; }
 .photo-thumb .photo-del {

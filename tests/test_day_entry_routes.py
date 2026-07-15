@@ -164,6 +164,104 @@ def test_add_day_images_form_post_still_redirects(client, app):
     assert resp.status_code == 302
 
 
+def test_add_day_images_appends_sort_order(client, app):
+    import io
+    tid, cid = make_trip(app)
+    client.post(f"/trips/{tid}/days", data={"date": "2026-01-01", "city_id": str(cid)})
+    with app.app_context():
+        did = Day.query.filter_by(trip_id=tid).one().id
+    for name in ("a.jpg", "b.jpg"):
+        client.post(f"/trips/{tid}/days/{did}/images",
+                    data={"images": (io.BytesIO(b"x"), name)},
+                    content_type="multipart/form-data")
+    with app.app_context():
+        imgs = DayImage.query.filter_by(day_id=did).order_by(DayImage.id).all()
+        assert [i.sort_order for i in imgs] == [0, 1]
+
+
+def test_reorder_day_images_updates_sort_order(client, app):
+    tid, cid = make_trip(app)
+    with app.app_context():
+        day = Day(trip_id=tid, date=dt.date(2026, 1, 1), city_id=cid)
+        db.session.add(day)
+        db.session.commit()
+        i1 = DayImage(day_id=day.id, path="uploads/a.jpg", sort_order=0)
+        i2 = DayImage(day_id=day.id, path="uploads/b.jpg", sort_order=1)
+        db.session.add_all([i1, i2])
+        db.session.commit()
+        did, i1_id, i2_id = day.id, i1.id, i2.id
+    resp = client.post(f"/trips/{tid}/days/{did}/images/reorder",
+                       json={"order": [i2_id, i1_id]})
+    assert resp.status_code == 200
+    assert resp.get_json() == {"ok": True}
+    with app.app_context():
+        assert db.session.get(DayImage, i2_id).sort_order == 0
+        assert db.session.get(DayImage, i1_id).sort_order == 1
+
+
+def test_reorder_day_images_rejects_id_mismatch(client, app):
+    tid, cid = make_trip(app)
+    with app.app_context():
+        day = Day(trip_id=tid, date=dt.date(2026, 1, 1), city_id=cid)
+        db.session.add(day)
+        db.session.commit()
+        i1 = DayImage(day_id=day.id, path="uploads/a.jpg", sort_order=0)
+        db.session.add(i1)
+        db.session.commit()
+        did = day.id
+    resp = client.post(f"/trips/{tid}/days/{did}/images/reorder",
+                       json={"order": [999]})
+    assert resp.status_code == 400
+    assert resp.get_json()["ok"] is False
+
+
+def test_reorder_day_images_mismatched_trip_returns_404(client, app):
+    tid, cid = make_trip(app)
+    with app.app_context():
+        day = Day(trip_id=tid, date=dt.date(2026, 1, 1), city_id=cid)
+        db.session.add(day)
+        db.session.commit()
+        did = day.id
+        other = Trip(title="other", start_date=dt.date(2026, 5, 1), end_date=dt.date(2026, 5, 2))
+        db.session.add(other)
+        db.session.commit()
+        other_id = other.id
+    resp = client.post(f"/trips/{other_id}/days/{did}/images/reorder", json={"order": []})
+    assert resp.status_code == 404
+
+
+def test_delete_day_image_ajax_returns_json(client, app):
+    tid, cid = make_trip(app)
+    with app.app_context():
+        day = Day(trip_id=tid, date=dt.date(2026, 1, 1), city_id=cid)
+        db.session.add(day)
+        db.session.commit()
+        img = DayImage(day_id=day.id, path="uploads/a.jpg")
+        db.session.add(img)
+        db.session.commit()
+        did, iid = day.id, img.id
+    resp = client.post(f"/trips/{tid}/days/{did}/images/{iid}/delete",
+                       headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 200
+    assert resp.get_json() == {"ok": True}
+    with app.app_context():
+        assert db.session.get(DayImage, iid) is None
+
+
+def test_delete_day_image_form_post_still_redirects(client, app):
+    tid, cid = make_trip(app)
+    with app.app_context():
+        day = Day(trip_id=tid, date=dt.date(2026, 1, 1), city_id=cid)
+        db.session.add(day)
+        db.session.commit()
+        img = DayImage(day_id=day.id, path="uploads/a.jpg")
+        db.session.add(img)
+        db.session.commit()
+        did, iid = day.id, img.id
+    resp = client.post(f"/trips/{tid}/days/{did}/images/{iid}/delete")
+    assert resp.status_code == 302
+
+
 def test_add_day_images_mismatched_trip_returns_404(client, app):
     import io
     tid, cid = make_trip(app)

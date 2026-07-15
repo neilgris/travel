@@ -5,21 +5,21 @@
   "use strict";
 
   function thumbFor(img) {
-    // 与 detail.html 里 .photo-thumb 结构保持一致，含删除表单与二次确认。
+    // 与 detail.html 里 .photo-thumb 结构保持一致；删除交互由 photo-delete.js 委托处理。
     const span = document.createElement("span");
     span.className = "photo-thumb";
+    span.draggable = true;
+    span.dataset.imageId = img.id;
 
     const el = document.createElement("img");
     el.className = "thumb";
+    el.draggable = false;
     el.src = img.url;
 
     const form = document.createElement("form");
     form.method = "post";
     form.className = "photo-del-form";
     form.action = img.delete_url;
-    form.addEventListener("submit", (e) => {
-      if (!confirm("删除这张照片？此操作不可恢复。")) e.preventDefault();
-    });
 
     const btn = document.createElement("button");
     btn.type = "submit";

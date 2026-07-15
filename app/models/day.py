@@ -50,6 +50,7 @@ class Day(db.Model):
                               cascade="all, delete-orphan")
     # 配图属于「某天」，不再挂在单条消费上。
     images = db.relationship("DayImage", backref="day",
+                             order_by="DayImage.sort_order",
                              cascade="all, delete-orphan")
 
 
@@ -72,3 +73,5 @@ class DayImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     day_id = db.Column(db.ForeignKey("day.id"), nullable=False)
     path = db.Column(db.String(255), nullable=False)
+    # 同一天内的显示顺序，支持前端拖拽调整；越小越靠前。
+    sort_order = db.Column(db.Integer, nullable=False, default=0)

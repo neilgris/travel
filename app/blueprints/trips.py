@@ -219,10 +219,10 @@ def add_day(trip_id):
               date=_parse_date(request.form["date"]),
               city_id=int(request.form["city_id"]) if request.form.get("city_id") else None,
               diary=request.form.get("diary") or None)
-    for f in request.files.getlist("images"):
+    for i, f in enumerate(request.files.getlist("images")):
         rel = save_upload(f, current_app.config["UPLOAD_FOLDER"], subdir=f"trips/{trip.id}")
         if rel:
-            day.images.append(DayImage(path=rel))
+            day.images.append(DayImage(path=rel, sort_order=i))
     db.session.add(day)
     db.session.commit()
     flash("已添加一天")
@@ -261,11 +261,13 @@ def add_day_images(trip_id, day_id):
     day = db.get_or_404(Day, day_id)
     if day.trip_id != trip_id:
         abort(404)
+    next_order = max((img.sort_order for img in day.images), default=-1) + 1
     new_images = []
     for f in request.files.getlist("images"):
         rel = save_upload(f, current_app.config["UPLOAD_FOLDER"], subdir=f"trips/{trip_id}")
         if rel:
-            img = DayImage(path=rel)
+            img = DayImage(path=rel, sort_order=next_order)
+            next_order += 1
             day.images.append(img)
             new_images.append(img)
     db.session.commit()
@@ -294,8 +296,35 @@ def delete_day_image(trip_id, day_id, image_id):
     delete_upload(img.path, current_app.config["UPLOAD_FOLDER"])
     db.session.delete(img)
     db.session.commit()
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return {"ok": True}
     flash("已删除照片")
     return redirect(url_for("trips.detail", trip_id=trip_id))
+
+
+@bp.route("/<int:trip_id>/days/<int:day_id>/images/reorder", methods=["POST"])
+def reorder_day_images(trip_id, day_id):
+    """异步调整某天内照片的显示顺序。请求体 JSON: {"order": [image_id, ...]}。"""
+    day = db.get_or_404(Day, day_id)
+    if day.trip_id != trip_id:
+        abort(404)
+    data = request.get_json(silent=True) or {}
+    raw = data.get("order")
+    # 注意：本文件的 list 视图函数遮蔽了内建 list（见 D14 踩坑），故不用 isinstance(_, list)。
+    if raw is None or isinstance(raw, (str, bytes, dict)):
+        return {"ok": False, "error": "bad payload"}, 400
+    try:
+        order = [int(x) for x in raw]
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "bad payload"}, 400
+    images = {img.id: img for img in day.images}
+    # 提交的 id 必须恰好是本天的全部照片，防止漏项/串天导致顺序错乱。
+    if set(order) != set(images):
+        return {"ok": False, "error": "id mismatch"}, 400
+    for i, iid in enumerate(order):
+        images[iid].sort_order = i
+    db.session.commit()
+    return {"ok": True}
 
 
 @bp.route("/<int:trip_id>/days/<int:day_id>/entries", methods=["POST"])
