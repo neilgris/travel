@@ -80,6 +80,7 @@
     {{ toplist(overview.most_expensive) }}
     {{ comp(overview.most_expensive) }}
   </a>
+  {% if overview.cheapest %}
   <a class="card super-card super-cheap"
      href="{{ url_for('trips.detail', trip_id=overview.cheapest.id) }}">
     <span class="super-emoji">🪙</span>
@@ -89,6 +90,7 @@
     {{ toplist(overview.cheapest) }}
     {{ comp(overview.cheapest) }}
   </a>
+  {% endif %}
   <div class="card">
     <h3>整体消费构成</h3>
     <div class="donut-wrap">

@@ -88,3 +88,13 @@ def test_trips_overview_top_cities(session):
         {"city": "大阪", "count": 2},
         {"city": "台北", "count": 1},
     ]
+
+
+def test_trips_overview_cheapest_excludes_zero_spend(session):
+    t_zero = Trip(title="无消费旅程", start_date=dt.date(2026, 1, 1), end_date=dt.date(2026, 1, 1))
+    session.add(t_zero)
+    t_real = build_trip(session)  # 总花费 400
+
+    overview = stats.trips_overview([t_zero, t_real])
+    assert overview["cheapest"]["id"] == t_real.id
+    assert overview["cheapest"]["total_cny"] == Decimal("400.00")

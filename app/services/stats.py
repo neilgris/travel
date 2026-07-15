@@ -133,8 +133,9 @@ def trips_overview(trips):
         return {"id": r["id"], "title": r["title"], "total_cny": r["total_cny"],
                 "by_category": r["by_category"], "top_entries": r["top_entries"]}
 
+    nonzero_rows = [r for r in rows if r["total_cny"] > 0]
     most_expensive = _card(rows[0]) if rows else None
-    cheapest = _card(rows[-1]) if rows else None
+    cheapest = _card(nonzero_rows[-1]) if nonzero_rows else None
 
     # 到访城市 Top 5（按覆盖旅程数降序），排除北京（住处所在地，去掉才有对比意义）
     top_cities = [
