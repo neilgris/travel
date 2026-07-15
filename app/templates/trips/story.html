@@ -12,6 +12,7 @@
     · 里程 {{ '{:,}'.format(distance_km) }} km
     · 总花费 ￥{{ total_cny }}
   </p>
+  {% if trip.notes %}<p class="story-desc">{{ trip.notes }}</p>{% endif %}
   <p class="story-links">
     <a href="{{ url_for('trips.detail', trip_id=trip.id) }}">← 返回详情</a>
     <a href="{{ url_for('trips.stats_page', trip_id=trip.id) }}">查看统计 →</a>

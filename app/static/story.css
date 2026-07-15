@@ -4,6 +4,7 @@
 .story-hero { margin-bottom: 2rem; }
 .story-hero h1 { font-size: 2.4rem; line-height: 1.15; margin: 0 0 .5rem; }
 .story-meta { color: #666; margin: 0 0 .5rem; }
+.story-desc { font-size: 1.1rem; line-height: 1.6; margin: 0 0 1rem; color: #333; }
 .story-links a { margin-right: 1.2rem; text-decoration: none; }
 
 .story-empty { color: #666; font-size: 1.1rem; }
