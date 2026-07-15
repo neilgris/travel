@@ -175,3 +175,26 @@ def test_story_route_empty_when_no_days(client, app):
     body = resp.get_data(as_text=True)
     assert resp.status_code == 200
     assert "还没有记录" in body    # 空态引导语
+
+
+def test_story_page_has_present_button(client, app):
+    from app.extensions import db
+    with app.app_context():
+        t = Trip(title="t", start_date=dt.date(2026, 1, 1), end_date=dt.date(2026, 1, 1))
+        t.days = [Day(date=dt.date(2026, 1, 1), diary="日记")]
+        db.session.add(t)
+        db.session.commit()
+        tid = t.id
+    body = client.get(f"/trips/{tid}/story").get_data(as_text=True)
+    assert "story-present-btn" in body   # 有 Day：显示放映按钮
+
+
+def test_story_page_no_present_button_without_days(client, app):
+    from app.extensions import db
+    with app.app_context():
+        t = Trip(title="空行", start_date=dt.date(2026, 1, 1), end_date=dt.date(2026, 1, 1))
+        db.session.add(t)
+        db.session.commit()
+        tid = t.id
+    body = client.get(f"/trips/{tid}/story").get_data(as_text=True)
+    assert "story-present-btn" not in body   # 无 Day：不渲染

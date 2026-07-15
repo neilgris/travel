@@ -5,7 +5,13 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='story.css') }}">
 
 <header class="story-hero">
-  <a class="story-back" href="{{ url_for('trips.detail', trip_id=trip.id) }}">← 返回详情</a>
+  <div class="story-actions">
+    {% if story.days %}
+    <button type="button" id="story-present-btn" class="story-present-btn"
+            data-vendor="{{ url_for('static', filename='vendor') }}/">▶ 放映</button>
+    {% endif %}
+    <a class="story-back" href="{{ url_for('trips.detail', trip_id=trip.id) }}">← 返回详情</a>
+  </div>
   <h1>{{ trip.title }}</h1>
   <p class="story-meta">
     {{ trip.start_date }} ~ {{ trip.end_date }}
