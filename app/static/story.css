@@ -1,11 +1,15 @@
 /* 故事页专属样式，仅 story.html 引入，不进全站 style.css。 */
 .story-main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
 
-.story-hero { margin-bottom: 2rem; }
+.story-hero { position: relative; margin-bottom: 2rem; padding-right: 7rem; }
 .story-hero h1 { font-size: 2.4rem; line-height: 1.15; margin: 0 0 .5rem; }
 .story-meta { color: #666; margin: 0 0 .5rem; }
 .story-desc { font-size: 1.1rem; line-height: 1.6; margin: 0 0 1rem; color: #333; }
-.story-links a { margin-right: 1.2rem; text-decoration: none; }
+
+.story-back { position: absolute; top: 0; right: 0; font-size: .85rem; color: #888;
+              text-decoration: none; padding: 5px 12px; border: 1px solid #ddd;
+              border-radius: 14px; transition: color .15s, border-color .15s, background .15s; }
+.story-back:hover { color: #b8955a; border-color: #b8955a; background: #faf7f0; }
 
 .story-empty { color: #666; font-size: 1.1rem; }
 
