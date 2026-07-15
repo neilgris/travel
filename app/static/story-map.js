@@ -1,19 +1,15 @@
-/* 故事页客户端：2D 小地图(d3 正射→改用等距投影贴合旅程) + 滚动高亮 + 照片灯箱。
-   离线依赖：d3、topojson、static/vendor/land-50m.json。 */
+/* 故事页客户端：2D 小地图(d3 等距投影贴合旅程) + 滚动联动 + 照片灯箱。
+   离线依赖：d3、topojson、static/vendor/land-50m.json。
+   render() 挂在 window.STORY_MAP 上，放映壳（story-present.js）复用它渲染角落小地图。 */
 (function () {
-  const mapEl = document.getElementById("story-map");
-  if (mapEl) initMap(mapEl);
-  initLightbox();
-
-  function initMap(el) {
-    let data;
-    try { data = JSON.parse(el.dataset.map || "{}"); } catch (e) { data = {}; }
+  function render(el, data, opts) {
+    opts = opts || {};
     const cities = data.cities || [];
     const route = data.route || [];
     const dayCities = data.day_cities || [];
     if (!cities.length) {
       el.innerHTML = '<p style="padding:1rem;color:#888">暂无坐标</p>';
-      return;
+      return null;
     }
 
     const w = el.clientWidth || 400;
@@ -24,7 +20,7 @@
     const feat = { type: "FeatureCollection", features: cities.map((c) => ({
       type: "Feature", geometry: { type: "Point", coordinates: [c.lng, c.lat] } })) };
     const projection = d3.geoEquirectangular();
-    const pad = 40;
+    const pad = opts.pad == null ? 40 : opts.pad;
     projection.fitExtent([[pad, pad], [w - pad, h - pad]], feat);
     const path = d3.geoPath(projection);
 
@@ -56,27 +52,42 @@
       .attr("y", (c) => projection([c.lng, c.lat])[1] + 4)
       .attr("font-size", 11).attr("fill", "#333").text((c) => c.name);
 
-    // 滚动高亮：当前天所在城市点变色放大。
+    // 高亮：指定城市点变色放大；highlightDay 按天下标经 day_cities 反查城市。
     const dots = svg.selectAll("circle.city-dot");
     function highlight(name) {
       dots.classed("is-active", (c) => c.name === name)
           .attr("r", (c) => (c.name === name ? 7 : 4));
     }
-    const sections = document.querySelectorAll(".story-day[data-day-index]");
-    const io = new IntersectionObserver((entries) => {
-      const vis = entries.filter((e) => e.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-      if (!vis) return;
-      const idx = +vis.target.dataset.dayIndex;
+    function highlightDay(idx) {
       const dc = dayCities[idx];
       if (!dc) { highlight(null); return; }
-      // 用坐标反查城市名（day_cities 只有 lat/lng）。
       const city = cities.find((c) => c.lat === dc.lat && c.lng === dc.lng);
       highlight(city ? city.name : null);
-    }, { rootMargin: "-45% 0px -45% 0px" });
-    sections.forEach((s) => io.observe(s));
+    }
+    return { highlight, highlightDay };
+  }
+  window.STORY_MAP = { render };
+
+  // ---------- 故事页初始化：左栏地图 + 滚动联动 ----------
+  const mapEl = document.getElementById("story-map");
+  if (mapEl) {
+    let data;
+    try { data = JSON.parse(mapEl.dataset.map || "{}"); } catch (e) { data = {}; }
+    const map = render(mapEl, data);
+    if (map) {
+      const sections = document.querySelectorAll(".story-day[data-day-index]");
+      const io = new IntersectionObserver((entries) => {
+        const vis = entries.filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!vis) return;
+        map.highlightDay(+vis.target.dataset.dayIndex);
+      }, { rootMargin: "-45% 0px -45% 0px" });
+      sections.forEach((s) => io.observe(s));
+    }
   }
 
+  // ---------- 照片灯箱 ----------
+  initLightbox();
   function initLightbox() {
     const photos = Array.from(document.querySelectorAll(".story-photo"));
     if (!photos.length) return;
