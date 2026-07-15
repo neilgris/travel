@@ -111,6 +111,9 @@ def edit_city(cid):
     if not name:
         flash("名称不能为空")
         return redirect(url_for("settings.cities"))
+    if name != city.name and City.query.filter_by(name=name).first():
+        flash(f"名称「{name}」已被其他城市使用，请换一个名称")
+        return redirect(url_for("settings.cities"))
     city.name = name
     city.country = request.form.get("country") or None
     if request.form.get("regeocode"):

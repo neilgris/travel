@@ -146,6 +146,22 @@ def test_edit_city_regeocode(client, app):
         assert c.latitude == 10.0 and c.longitude == 20.0
 
 
+def test_edit_city_rename_to_existing_name_blocked(client, app):
+    """改名撞到另一个已存在的城市名时，友好提示而不是 500（UNIQUE 约束报错）。"""
+    with app.app_context():
+        db.session.add(City(name="普吉岛", latitude=7.98, longitude=98.34))
+        c = City(name="普吉")
+        db.session.add(c)
+        db.session.commit()
+        cid = c.id
+    resp = client.post(f"/settings/cities/{cid}/edit",
+                       data={"name": "普吉岛"}, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        c = db.session.get(City, cid)
+        assert c.name == "普吉"
+
+
 def test_delete_city(client, app):
     with app.app_context():
         c = City(name="待删城")
