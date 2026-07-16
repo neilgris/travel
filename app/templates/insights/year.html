@@ -39,7 +39,9 @@
 {# ---- 第 2 节 足迹地图 ---- #}
 <section class="yr-section">
   <h2 class="yr-h2">这一年，你走过这些地方</h2>
-  <div id="year-map" data-map='{{ map_json | safe }}'></div>
+  {# 地图数据由下方内联脚本直接传给 STORY_MAP.render()，不走 story.html 那种 data-map 属性——
+     story-map.js 的自动初始化只认 #story-map，这里的 #year-map 是自己调 render()。 #}
+  <div id="year-map"></div>
 </section>
 
 {# ---- 第 3 节 新解锁国家（没有就整节跳过）---- #}
