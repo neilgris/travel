@@ -17,10 +17,10 @@ from decimal import Decimal
 
 from app.models.city import City
 from app.models.day import CATEGORIES
-from app.services.distance import haversine_km, trip_distance_km
+from app.services.distance import has_coords, haversine_km, trip_distance_km
 from app.services.stats import to_cny, trip_stats, trips_overview
-# _point 复用故事页的城市点整形（有经纬度才算有效），避免两处各写一遍。
-from app.services.story import _point
+# point 复用故事页的城市点整形（有经纬度才算有效），避免两处各写一遍。
+from app.services.story import point
 
 # 住处：most_visited_city 的排除项、farthest_city 的距离基准。
 # 与 stats.trips_overview 里 top_cities 排除北京的口径一致。
@@ -106,13 +106,13 @@ def _most_visited_city(trips):
 def _farthest_city(trips):
     """距住处直线距离最大的城市。住处不在库里或无坐标时无基准，返回 None。"""
     home = City.query.filter_by(name=HOME_CITY).first()
-    if home is None or home.latitude is None or home.longitude is None:
+    if not has_coords(home):
         return None
     best = None
     seen = set()
     for t in trips:
         for c in t.cities:
-            if c.id in seen or c.latitude is None or c.name == HOME_CITY:
+            if c.id in seen or not has_coords(c) or c.name == HOME_CITY:
                 continue
             seen.add(c.id)
             km = round(haversine_km(home.latitude, home.longitude,
@@ -197,7 +197,7 @@ def _year_map(year_trips):
     route, cities, seen = [], [], set()
     for t in year_trips:
         for leg in t.legs:   # Trip.legs 已按 seq 排序
-            frm, to = _point(leg.from_city), _point(leg.to_city)
+            frm, to = point(leg.from_city), point(leg.to_city)
             if frm is None or to is None:
                 continue
             route.append({"from": frm, "to": to})
@@ -208,7 +208,7 @@ def _year_map(year_trips):
     for t in year_trips:
         for d in t.days:
             # 不在任何 Leg 端点上的天也画成点（同 story._map_data 的口径）
-            p = _point(d.city)
+            p = point(d.city)
             if p and p["name"] not in seen:
                 seen.add(p["name"])
                 cities.append(dict(p))

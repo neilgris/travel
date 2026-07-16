@@ -17,7 +17,7 @@ def haversine_km(lat1, lng1, lat2, lng2):
     return 2 * EARTH_RADIUS_KM * asin(sqrt(a))
 
 
-def _has_coords(city):
+def has_coords(city):
     return city is not None and city.latitude is not None and city.longitude is not None
 
 
@@ -26,7 +26,7 @@ def trip_distance_km(trip):
     total = 0.0
     for leg in trip.legs:
         frm, to = leg.from_city, leg.to_city
-        if _has_coords(frm) and _has_coords(to):
+        if has_coords(frm) and has_coords(to):
             total += haversine_km(frm.latitude, frm.longitude,
                                   to.latitude, to.longitude)
     return round(total)
