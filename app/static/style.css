@@ -437,6 +437,35 @@ select {
 .photo-drop.uploading { opacity: 0.6; pointer-events: none; }
 .photo-drop-hint { margin: 0 0 0.4rem; color: var(--muted); font-size: 0.9rem; }
 
+/* ---- 视频截帧弹窗 ---- */
+.video-frame-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+.video-frame-box {
+  background: #fff;
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  max-width: min(90vw, 640px);
+  width: 100%;
+}
+.video-frame-box video { width: 100%; max-height: 60vh; display: block; border-radius: var(--radius-sm); background: #000; }
+.video-frame-hint { margin: 0.6rem 0; color: var(--muted); font-size: 0.88rem; }
+.video-frame-actions { display: flex; gap: 0.5rem; align-items: center; }
+/* 微调按钮和时间码靠左，截取/取消留在右侧。 */
+.video-frame-clock {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- 每一天卡片头部：标题 + 编辑/删除操作同排 ---- */
 .day-head {
   display: flex;

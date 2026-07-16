@@ -134,11 +134,12 @@
   <details><summary>+ 添加照片</summary>
   <div class="photo-drop"
        data-upload-url="{{ url_for('trips.add_day_images', trip_id=trip.id, day_id=day.id) }}">
-    <p class="photo-drop-hint">把照片从「照片」App 拖到这里（HEIC 会自动转 JPEG），或</p>
+    <p class="photo-drop-hint">把照片从「照片」App 拖到这里（HEIC 自动转 JPEG）。<br>
+      视频想截一帧存成图片，请用下面的「选择文件」——从「照片」App 直接拖视频，系统只会给一张封面图。</p>
     <form method="post" enctype="multipart/form-data"
           action="{{ url_for('trips.add_day_images', trip_id=trip.id, day_id=day.id) }}">
-      <input type="file" name="images" accept="image/*,.heic,.heif" multiple required>
-      <button class="btn" type="submit">上传照片</button>
+      <input type="file" name="images" accept="image/*,.heic,.heif,video/*" multiple required>
+      <button class="btn" type="submit">上传</button>
     </form>
   </div></details>
 </div>
@@ -170,6 +171,7 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='entry-reorder.js') }}"></script>
 <script src="{{ url_for('static', filename='photo-drop.js') }}"></script>
+<script src="{{ url_for('static', filename='video-frame-capture.js') }}"></script>
 <script src="{{ url_for('static', filename='photo-reorder.js') }}"></script>
 <script src="{{ url_for('static', filename='photo-delete.js') }}"></script>
 {% endblock %}
