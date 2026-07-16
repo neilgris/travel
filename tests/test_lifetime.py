@@ -105,6 +105,37 @@ def test_most_visited_city_excludes_home(session):
     assert m["most_visited_city"]["last_date"] == dt.date(2025, 1, 1)
 
 
+def test_most_visited_city_first_last_date_across_trips(session):
+    """上海被 3 趟不同年份的旅程覆盖：count 与首末到访日期都要对得上。"""
+    bj = make_city(session, "北京", lat=39.90, lng=116.41)
+    sh = make_city(session, "上海", lat=31.23, lng=121.47)
+    t1 = make_trip(session, "a", dt.date(2026, 1, 1), dt.date(2026, 1, 2),
+                   legs=[(bj, sh)])
+    t2 = make_trip(session, "b", dt.date(2024, 1, 1), dt.date(2024, 1, 2),
+                   legs=[(bj, sh)])
+    t3 = make_trip(session, "c", dt.date(2025, 1, 1), dt.date(2025, 1, 2),
+                   legs=[(bj, sh)])
+    # 故意乱序传入，验证内部按开始日期排序而非依赖调用方传入顺序
+    m = lifetime.lifetime_stats([t1, t2, t3])["milestones"]
+    assert m["most_visited_city"]["city"] == "上海"
+    assert m["most_visited_city"]["count"] == 3
+    assert m["most_visited_city"]["first_date"] == dt.date(2024, 1, 1)
+    assert m["most_visited_city"]["last_date"] == dt.date(2026, 1, 1)
+
+
+def test_most_visited_city_tiebreak_by_name(session):
+    """并列时按城市名升序取第一个。"""
+    bj = make_city(session, "北京", lat=39.90, lng=116.41)
+    sh = make_city(session, "上海", lat=31.23, lng=121.47)
+    sz = make_city(session, "深圳", lat=22.54, lng=114.06)
+    t1 = make_trip(session, "a", dt.date(2025, 1, 1), dt.date(2025, 1, 2),
+                   legs=[(bj, sh)])
+    t2 = make_trip(session, "b", dt.date(2026, 1, 1), dt.date(2026, 1, 2),
+                   legs=[(bj, sz)])
+    m = lifetime.lifetime_stats([t1, t2])["milestones"]
+    assert m["most_visited_city"]["city"] == "上海"   # "上海" < "深圳"
+
+
 def test_milestones_none_when_data_missing(session):
     # 只有国内游、且城市无坐标 → 出国/最远旅程/最远城市都无从谈起
     c = make_city(session, "天津")
@@ -120,6 +151,19 @@ def test_milestones_none_when_data_missing(session):
 def test_milestones_empty(session):
     m = lifetime.lifetime_stats([])["milestones"]
     assert all(v is None for v in m.values())
+
+
+def test_farthest_city_skips_half_coord_city(session):
+    """半坐标城市（有纬度、无经度）不该炸 haversine，也不该被当作有效候选。"""
+    bj = make_city(session, "北京", lat=39.90, lng=116.41)
+    half = City(name="残缺市", country="中国", latitude=10.0, longitude=None)
+    session.add(half)
+    tokyo = make_city(session, "东京", country="日本", lat=35.68, lng=139.69)
+    t = make_trip(session, "混合", dt.date(2026, 1, 1), dt.date(2026, 1, 2),
+                  legs=[(bj, half), (bj, tokyo)])
+    # 不抛异常，且半坐标城市不会成为 farthest_city
+    m = lifetime.lifetime_stats([t])["milestones"]
+    assert m["farthest_city"]["city"] == "东京"
 
 
 def test_by_year_fills_gap_years(session):
@@ -171,6 +215,18 @@ def test_busiest_year(session):
         make_trip(session, "c", dt.date(2026, 3, 1), dt.date(2026, 3, 2), legs=[(c, c)]),
     ]
     assert lifetime.lifetime_stats(trips)["busiest_year"] == 2026
+
+
+def test_busiest_year_tiebreak_takes_earlier(session):
+    c = make_city(session, "上海")
+    trips = [
+        make_trip(session, "a", dt.date(2025, 1, 1), dt.date(2025, 1, 2), legs=[(c, c)]),
+        make_trip(session, "b", dt.date(2025, 3, 1), dt.date(2025, 3, 2), legs=[(c, c)]),
+        make_trip(session, "c", dt.date(2026, 1, 1), dt.date(2026, 1, 2), legs=[(c, c)]),
+        make_trip(session, "d", dt.date(2026, 3, 1), dt.date(2026, 3, 2), legs=[(c, c)]),
+    ]
+    # 2025、2026 各 2 趟，并列取较早的 2025
+    assert lifetime.lifetime_stats(trips)["busiest_year"] == 2025
 
 
 def test_by_year_empty(session):
@@ -251,3 +307,16 @@ def test_year_report_superlatives_none_without_entries(session):
     assert s["best_meal"] is None
     assert s["best_stay"] is None
     assert s["biggest_day"] is None
+    assert s["farthest_trip"] is None
+
+
+def test_year_report_prev_year_skips_gap_year(session):
+    """2020 空档：2021 的同比取最近一个有旅程的年份（2019），而非严格意义的「上一年」。"""
+    c = make_city(session, "上海")
+    t2019 = make_trip(session, "a", dt.date(2019, 1, 1), dt.date(2019, 1, 2),
+                      legs=[(c, c)],
+                      days=[(dt.date(2019, 1, 1), c, [("购物", "书", "80", "CNY")])])
+    t2021 = make_trip(session, "b", dt.date(2021, 1, 1), dt.date(2021, 1, 2), legs=[(c, c)])
+    r = lifetime.year_report([t2019, t2021], 2021)
+    assert r["prev_year"] == 2019
+    assert r["prev_total_cny"] == Decimal("80.00")
