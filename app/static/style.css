@@ -1102,3 +1102,17 @@ canvas { max-width: 100%; }
   position: absolute; z-index: 4; pointer-events: none;
   max-width: 220px;
 }
+
+/* ---- 人生足迹总览：KPI 六列 + 里程碑卡 ---- */
+.kpi-row-6 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+.ms-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px; margin-bottom: 1.2rem;
+}
+.ms-card { display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: inherit; }
+a.ms-card:hover { transform: translateY(-2px); transition: transform .15s; }
+.ms-emoji { font-size: 1.5rem; }
+.ms-label { font-size: .8rem; color: #888; }
+.ms-value { font-size: 1.15rem; font-weight: 600; }
+.ms-sub { font-size: .78rem; color: #999; }

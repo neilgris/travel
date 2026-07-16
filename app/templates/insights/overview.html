@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}人生足迹{% endblock %}
+{% set cat_colors = {
+  "吃饭": "#e76f51", "游玩": "#2a9d8f", "购物": "#e9c46a",
+  "住宿": "#4a9fc9", "交通": "#9b8cb5", "其他消费": "#b0a99f"} %}
+{% block content %}
+<div class="list-head">
+  <h1>人生足迹</h1>
+</div>
+
+{% if not s.trip_count %}
+<p class="muted">还没有旅程，<a href="{{ url_for('trips.create') }}">去创建一个 →</a></p>
+{% else %}
+<div class="kpi-row kpi-row-6">
+  <div class="card kpi">
+    <span class="kpi-label">历史总花费</span>
+    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.grand_total) }}</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">旅程数</span>
+    <span class="kpi-value">{{ s.trip_count }}</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">在途天数</span>
+    <span class="kpi-value">{{ '{:,}'.format(s.days_on_road) }}</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">总里程</span>
+    <span class="kpi-value">{{ '{:,}'.format(s.total_distance_km) }} <small>km</small></span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">到访国家</span>
+    <span class="kpi-value">{{ s.country_count }}
+      <span class="kpi-flags">{% for f in s.countries | map('country_flag') | unique %}{{ f }}{% endfor %}</span>
+    </span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">到访城市</span>
+    <span class="kpi-value">{{ s.city_count }}</span>
+    {% if s.top_cities %}
+    <span class="kpi-sub">{% for tc in s.top_cities %}{{ tc.city }} {{ tc.count }}{% if not loop.last %} · {% endif %}{% endfor %}</span>
+    {% endif %}
+  </div>
+</div>
+
+{% set m = s.milestones %}
+<div class="ms-row">
+  {% if m.first_abroad %}
+  <a class="card ms-card" href="{{ url_for('trips.detail', trip_id=m.first_abroad.trip_id) }}">
+    <span class="ms-emoji">🛂</span>
+    <span class="ms-label">第一次出国</span>
+    <span class="ms-value">{{ m.first_abroad.countries | map('country_flag') | join('') }}
+      {{ m.first_abroad.countries | join('、') }}</span>
+    <span class="ms-sub">{{ m.first_abroad.date }} · {{ m.first_abroad.title }}</span>
+  </a>
+  {% endif %}
+  {% if m.farthest_trip %}
+  <a class="card ms-card" href="{{ url_for('trips.detail', trip_id=m.farthest_trip.trip_id) }}">
+    <span class="ms-emoji">🛫</span>
+    <span class="ms-label">走得最远的一次</span>
+    <span class="ms-value">{{ '{:,}'.format(m.farthest_trip.distance_km) }} km</span>
+    <span class="ms-sub">{{ m.farthest_trip.date }} · {{ m.farthest_trip.title }}</span>
+  </a>
+  {% endif %}
+  {% if m.longest_trip %}
+  <a class="card ms-card" href="{{ url_for('trips.detail', trip_id=m.longest_trip.trip_id) }}">
+    <span class="ms-emoji">📅</span>
+    <span class="ms-label">最长的一趟</span>
+    <span class="ms-value">{{ m.longest_trip.days }} 天</span>
+    <span class="ms-sub">{{ m.longest_trip.date }} · {{ m.longest_trip.title }}</span>
+  </a>
+  {% endif %}
+  {% if m.most_visited_city %}
+  <div class="card ms-card">
+    <span class="ms-emoji">📍</span>
+    <span class="ms-label">去得最多的城市</span>
+    <span class="ms-value">{{ m.most_visited_city.city }}</span>
+    <span class="ms-sub">{{ m.most_visited_city.count }} 次 ·
+      {{ m.most_visited_city.first_date }} ~ {{ m.most_visited_city.last_date }}</span>
+  </div>
+  {% endif %}
+  {% if m.farthest_city %}
+  <div class="card ms-card">
+    <span class="ms-emoji">🌏</span>
+    <span class="ms-label">离家最远的城市</span>
+    <span class="ms-value">{{ m.farthest_city.country | country_flag }} {{ m.farthest_city.city }}</span>
+    <span class="ms-sub">距北京 {{ '{:,}'.format(m.farthest_city.distance_km) }} km</span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
