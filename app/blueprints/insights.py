@@ -5,11 +5,11 @@ docs/specs/2026-07-17-insights-design.md。
 """
 import json
 
-from flask import Blueprint, render_template
+from flask import Blueprint, abort, render_template
 
 from app.models.day import CATEGORIES
 from app.models.trip import Trip
-from app.services.lifetime import lifetime_stats
+from app.services.lifetime import lifetime_stats, year_report
 
 bp = Blueprint("insights", __name__, url_prefix="/insights")
 
@@ -51,3 +51,15 @@ def overview():
         years_json=_safe_json(years),
         busiest_year=s["busiest_year"],
     )
+
+
+@bp.route("/<int:year>")
+def year_report_page(year):
+    trips = Trip.query.order_by(Trip.start_date).all()
+    r = year_report(trips, year)
+    if r is None:
+        abort(404)
+    return render_template("insights/year.html", r=r, categories=CATEGORIES,
+                           map_json=_safe_json(r["map"]),
+                           cat_json=_safe_json({cat: float(v) for cat, v
+                                                in r["by_category"].items()}))

@@ -67,3 +67,26 @@ def test_list_page_is_list_only(client, app):
     assert "历史总花费" not in body      # 看板已搬走
     assert 'id="compareChart"' not in body
     assert "最贵旅程" not in body
+
+
+def test_year_report_renders(client, app):
+    seed(app)
+    resp = client.get("/insights/2026")
+    body = resp.get_data(as_text=True)
+    assert resp.status_code == 200
+    assert "2026" in body
+    assert "东京之旅" in body
+    assert "新解锁" in body            # 日本是 2026 首访
+    assert "寿司" in body              # 年度之最：最贵的一顿饭
+    assert 'id="year-map"' in body
+
+
+def test_year_report_404_for_year_without_trips(client, app):
+    seed(app)
+    assert client.get("/insights/2020").status_code == 404
+
+
+def test_year_report_year_nav(client, app):
+    seed(app)
+    body = client.get("/insights/2026").get_data(as_text=True)
+    assert 'href="/insights/2025"' in body     # 上一年有数据

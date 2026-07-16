@@ -34,6 +34,9 @@
     return keep.length ? keep : cities;
   }
 
+  // opts.frameAll：跳过 framingCities 裁剪，全部城市参与取景。
+  // 裁剪规则是为「单趟旅程」调的（甩开出发地与远程中转），年度报告要看的是
+  // 「那年走遍了哪」的全貌，一年多趟跨洲时裁剪会把画框框偏。
   function render(el, data, opts) {
     opts = opts || {};
     const cities = data.cities || [];
@@ -51,7 +54,8 @@
     // 用取景城市集算包围盒，等距圆柱投影 fitExtent 贴合（区域旅程也看得清）。
     // 出发地（home）= 第一段 Leg 的出发城市（route 已按 seq 排序）。
     const home = route.length ? route[0].from.name : null;
-    const feat = { type: "FeatureCollection", features: framingCities(cities, home).map((c) => ({
+    const framed = opts.frameAll ? cities : framingCities(cities, home);
+    const feat = { type: "FeatureCollection", features: framed.map((c) => ({
       type: "Feature", geometry: { type: "Point", coordinates: [c.lng, c.lat] } })) };
     const projection = d3.geoEquirectangular();
     const pad = opts.pad == null ? 40 : opts.pad;
