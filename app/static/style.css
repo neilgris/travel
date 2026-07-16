@@ -211,6 +211,9 @@ select {
 }
 .row-del:hover { color: var(--accent); border-color: var(--accent); }
 
+/* 行程段：拖拽调整顺序（与消费记录 .drag-handle / .dragging 视觉一致） */
+.leg-row.dragging { opacity: 0.5; }
+
 /* 添加一行的幽灵按钮 */
 .btn-add {
   width: auto;

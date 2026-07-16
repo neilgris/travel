@@ -44,7 +44,8 @@
   <h3>行程段（出发→到达 + 出行方式）</h3>
   <div id="legs">
     {% for leg in (trip.legs if trip else [None]) %}
-    <div class="leg-row">
+    <div class="leg-row" draggable="true">
+      <span class="drag-handle" title="拖拽调整顺序">⠿</span>
       <input type="hidden" name="leg_seq" value="{{ loop.index }}">
       {{ city_field('leg_from', '出发城市', leg.from_city if leg else None) }}
       {{ city_field('leg_to', '到达城市', leg.to_city if leg else None) }}
@@ -57,7 +58,8 @@
     {% endfor %}
   </div>
   <template id="leg-template">
-    <div class="leg-row">
+    <div class="leg-row" draggable="true">
+      <span class="drag-handle" title="拖拽调整顺序">⠿</span>
       <input type="hidden" name="leg_seq" value="">
       {{ city_field('leg_from', '出发城市', None) }}
       {{ city_field('leg_to', '到达城市', None) }}

@@ -48,8 +48,57 @@
         clearRow(row); // 至少保留一行，清空而非删除
       }
       renumberLegs();
+      return;
     }
   });
+
+  // 行程段：同 detail.html 消费记录一致的原生拖放，纯前端调整 DOM 顺序，
+  // 提交时 leg_seq 已按 renumberLegs 重排，无需再问服务端。
+  (function initLegDrag() {
+    var legs = document.getElementById('legs');
+    if (!legs) return;
+    var dragging = null;
+
+    function afterElement(y) {
+      var rows = Array.prototype.filter.call(
+        legs.querySelectorAll('.leg-row'),
+        function (r) { return r !== dragging; }
+      );
+      var closest = { offset: -Infinity, el: null };
+      rows.forEach(function (row) {
+        var box = row.getBoundingClientRect();
+        var offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) closest = { offset: offset, el: row };
+      });
+      return closest.el;
+    }
+
+    legs.addEventListener('dragstart', function (e) {
+      var row = e.target.closest('.leg-row');
+      if (!row || !legs.contains(row)) return;
+      dragging = row;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    legs.addEventListener('dragend', function () {
+      if (!dragging) return;
+      dragging.classList.remove('dragging');
+      dragging = null;
+      renumberLegs();
+    });
+
+    legs.addEventListener('dragover', function (e) {
+      if (!dragging) return;
+      e.preventDefault();
+      var ref = afterElement(e.clientY);
+      if (ref == null) {
+        legs.appendChild(dragging);
+      } else if (ref !== dragging) {
+        legs.insertBefore(dragging, ref);
+      }
+    });
+  })();
 
   document.addEventListener('change', function (e) {
     if (e.target.matches('select[name="cur_code"]')) fetchRate(e.target);
