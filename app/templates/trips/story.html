@@ -13,7 +13,19 @@
     {% endif %}
     <a class="story-back" href="{{ url_for('trips.detail', trip_id=trip.id) }}">← 返回详情</a>
   </div>
-  <h1>{{ trip.title }}</h1>
+  <div class="trip-title-nav">
+    {% if prev_trip %}
+    <a class="title-nav-arrow" href="{{ url_for('trips.story', trip_id=prev_trip.id) }}" title="{{ prev_trip.title }}">‹</a>
+    {% else %}
+    <span class="title-nav-arrow disabled">‹</span>
+    {% endif %}
+    <h1>{{ trip.title }}</h1>
+    {% if next_trip %}
+    <a class="title-nav-arrow" href="{{ url_for('trips.story', trip_id=next_trip.id) }}" title="{{ next_trip.title }}">›</a>
+    {% else %}
+    <span class="title-nav-arrow disabled">›</span>
+    {% endif %}
+  </div>
   <p class="story-meta">
     {{ trip.start_date }} ~ {{ trip.end_date }}
     {% if trip.people %}· 同行：{{ trip.people | map(attribute='name') | join('、') }}{% endif %}

@@ -25,6 +25,21 @@ def _parse_date(s):
     return dt.datetime.strptime(s, "%Y-%m-%d").date()
 
 
+def _adjacent_trips(trip):
+    """按开始日期排序的上一个/下一个旅程，同日期按 id 兜底排序。"""
+    prev_trip = (Trip.query
+                 .filter(db.or_(Trip.start_date < trip.start_date,
+                                 db.and_(Trip.start_date == trip.start_date, Trip.id < trip.id)))
+                 .order_by(Trip.start_date.desc(), Trip.id.desc())
+                 .first())
+    next_trip = (Trip.query
+                 .filter(db.or_(Trip.start_date > trip.start_date,
+                                 db.and_(Trip.start_date == trip.start_date, Trip.id > trip.id)))
+                 .order_by(Trip.start_date.asc(), Trip.id.asc())
+                 .first())
+    return prev_trip, next_trip
+
+
 def _resolve_city(name):
     """按城市名解析：已存在则复用，否则自动地理编码并新建。空名返回 None。"""
     name = (name or "").strip()
@@ -184,17 +199,8 @@ def detail(trip_id):
     next_day_date = trip.start_date
     if trip.days:
         next_day_date = max(d.date for d in trip.days) + dt.timedelta(days=1)
-    # 标题旁的上一个/下一个旅程：按开始日期排序，同日期按 id 兜底排序。
-    prev_trip = (Trip.query
-                 .filter(db.or_(Trip.start_date < trip.start_date,
-                                 db.and_(Trip.start_date == trip.start_date, Trip.id < trip.id)))
-                 .order_by(Trip.start_date.desc(), Trip.id.desc())
-                 .first())
-    next_trip = (Trip.query
-                 .filter(db.or_(Trip.start_date > trip.start_date,
-                                 db.and_(Trip.start_date == trip.start_date, Trip.id > trip.id)))
-                 .order_by(Trip.start_date.asc(), Trip.id.asc())
-                 .first())
+    # 标题旁的上一个/下一个旅程 + 快速跳转下拉。
+    prev_trip, next_trip = _adjacent_trips(trip)
     # 标题旁的旅程快速跳转下拉：全部旅程按开始日期倒序（与列表页一致）。
     all_trips = Trip.query.order_by(Trip.start_date.desc(), Trip.id.desc()).all()
     return render_template("trips/detail.html", trip=trip, next_day_date=next_day_date,
@@ -206,10 +212,12 @@ def detail(trip_id):
 @bp.route("/<int:trip_id>/story")
 def story(trip_id):
     trip = db.get_or_404(Trip, trip_id)
+    prev_trip, next_trip = _adjacent_trips(trip)
     return render_template("trips/story.html", trip=trip,
                            story=story_data(trip),
                            distance_km=trip_distance_km(trip),
-                           total_cny=trip_stats(trip)["total_cny"])
+                           total_cny=trip_stats(trip)["total_cny"],
+                           prev_trip=prev_trip, next_trip=next_trip)
 
 
 @bp.route("/<int:trip_id>/days", methods=["POST"])
