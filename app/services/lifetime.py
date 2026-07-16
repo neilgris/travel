@@ -14,7 +14,8 @@
 """
 import datetime as dt
 
-from app.services.distance import trip_distance_km
+from app.models.city import City
+from app.services.distance import haversine_km, trip_distance_km
 from app.services.stats import trips_overview
 
 # 住处：most_visited_city 的排除项、farthest_city 的距离基准。
@@ -42,6 +43,91 @@ def _days_on_road(trips):
     return len(days)
 
 
+def _trip_countries(trip):
+    """一趟旅程涉及的国家集合（Trip.cities 由 Leg 推导，见 models/trip.py）。"""
+    return {c.country for c in trip.cities if c.country}
+
+
+def _first_abroad(trips):
+    """最早一趟含非中国城市的旅程。"""
+    for t in _sorted(trips):
+        abroad = sorted(c for c in _trip_countries(t) if c != CHINA)
+        if abroad:
+            return {"trip_id": t.id, "title": t.title,
+                    "date": t.start_date, "countries": abroad}
+    return None
+
+
+def _farthest_trip(trips):
+    """里程最长的旅程。全程无坐标（里程 0）的旅程不参与。"""
+    best = None
+    for t in _sorted(trips):
+        km = trip_distance_km(t)
+        if km <= 0:
+            continue
+        if best is None or km > best["distance_km"]:
+            best = {"trip_id": t.id, "title": t.title,
+                    "date": t.start_date, "distance_km": km}
+    return best
+
+
+def _longest_trip(trips):
+    """在途天数最多的旅程。"""
+    best = None
+    for t in _sorted(trips):
+        days = (t.end_date - t.start_date).days + 1
+        if best is None or days > best["days"]:
+            best = {"trip_id": t.id, "title": t.title,
+                    "date": t.start_date, "days": days}
+    return best
+
+
+def _most_visited_city(trips):
+    """覆盖旅程数最多的城市（排除住处），带首末次到访日期。
+
+    并列时按城市名升序取第一个，与 trips_overview 的 top_cities 排序口径一致。
+    """
+    visits = {}
+    for t in _sorted(trips):
+        for name in sorted({c.name for c in t.cities if c.name != HOME_CITY}):
+            visits.setdefault(name, []).append(t.start_date)
+    if not visits:
+        return None
+    name = min(visits, key=lambda n: (-len(visits[n]), n))
+    dates = visits[name]   # _sorted 保证已按日期升序
+    return {"city": name, "count": len(dates),
+            "first_date": dates[0], "last_date": dates[-1]}
+
+
+def _farthest_city(trips):
+    """距住处直线距离最大的城市。住处不在库里或无坐标时无基准，返回 None。"""
+    home = City.query.filter_by(name=HOME_CITY).first()
+    if home is None or home.latitude is None or home.longitude is None:
+        return None
+    best = None
+    seen = set()
+    for t in trips:
+        for c in t.cities:
+            if c.id in seen or c.latitude is None or c.name == HOME_CITY:
+                continue
+            seen.add(c.id)
+            km = round(haversine_km(home.latitude, home.longitude,
+                                    c.latitude, c.longitude))
+            if best is None or km > best["distance_km"]:
+                best = {"city": c.name, "country": c.country, "distance_km": km}
+    return best
+
+
+def _milestones(trips):
+    return {
+        "first_abroad": _first_abroad(trips),
+        "farthest_trip": _farthest_trip(trips),
+        "longest_trip": _longest_trip(trips),
+        "most_visited_city": _most_visited_city(trips),
+        "farthest_city": _farthest_city(trips),
+    }
+
+
 def lifetime_stats(trips):
     """人生足迹总览页数据：trips_overview 的全部键 + 里程/在途天数/里程碑/逐年。"""
     overview = trips_overview(trips)
@@ -49,4 +135,5 @@ def lifetime_stats(trips):
         **overview,
         "total_distance_km": sum(trip_distance_km(t) for t in trips),
         "days_on_road": _days_on_road(trips),
+        "milestones": _milestones(trips),
     }

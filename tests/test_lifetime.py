@@ -66,3 +66,57 @@ def test_lifetime_stats_empty(session):
     assert s["trip_count"] == 0
     assert s["days_on_road"] == 0
     assert s["total_distance_km"] == 0
+
+
+def test_milestones(session):
+    bj = make_city(session, "北京", lat=39.90, lng=116.41)
+    tokyo = make_city(session, "东京", country="日本", lat=35.68, lng=139.69)
+    nyc = make_city(session, "纽约", country="美国", lat=40.71, lng=-74.01)
+    # 2024 国内游（3 天）；2025 东京（2 天）；2026 纽约（5 天，最远最长）
+    t1 = make_trip(session, "国内", dt.date(2024, 5, 1), dt.date(2024, 5, 3),
+                   legs=[(bj, bj)])
+    t2 = make_trip(session, "东京", dt.date(2025, 5, 1), dt.date(2025, 5, 2),
+                   legs=[(bj, tokyo)])
+    t3 = make_trip(session, "纽约", dt.date(2026, 5, 1), dt.date(2026, 5, 5),
+                   legs=[(bj, nyc)])
+    m = lifetime.lifetime_stats([t1, t2, t3])["milestones"]
+
+    assert m["first_abroad"]["trip_id"] == t2.id      # 东京是最早的出国
+    assert m["first_abroad"]["countries"] == ["日本"]
+    assert m["farthest_trip"]["trip_id"] == t3.id     # 北京→纽约最远
+    assert m["longest_trip"]["trip_id"] == t3.id      # 5 天
+    assert m["longest_trip"]["days"] == 5
+    assert m["farthest_city"]["city"] == "纽约"
+    assert m["farthest_city"]["distance_km"] > 10000
+
+
+def test_most_visited_city_excludes_home(session):
+    bj = make_city(session, "北京", lat=39.90, lng=116.41)
+    sh = make_city(session, "上海", lat=31.23, lng=121.47)
+    # 北京出现 2 次、上海 1 次，但北京是住处要排除 → 上海胜出
+    t1 = make_trip(session, "a", dt.date(2025, 1, 1), dt.date(2025, 1, 2),
+                   legs=[(bj, sh)])
+    t2 = make_trip(session, "b", dt.date(2026, 1, 1), dt.date(2026, 1, 2),
+                   legs=[(bj, bj)])
+    m = lifetime.lifetime_stats([t1, t2])["milestones"]
+    assert m["most_visited_city"]["city"] == "上海"
+    assert m["most_visited_city"]["count"] == 1
+    assert m["most_visited_city"]["first_date"] == dt.date(2025, 1, 1)
+    assert m["most_visited_city"]["last_date"] == dt.date(2025, 1, 1)
+
+
+def test_milestones_none_when_data_missing(session):
+    # 只有国内游、且城市无坐标 → 出国/最远旅程/最远城市都无从谈起
+    c = make_city(session, "天津")
+    t = make_trip(session, "a", dt.date(2026, 1, 1), dt.date(2026, 1, 1),
+                  legs=[(c, c)])
+    m = lifetime.lifetime_stats([t])["milestones"]
+    assert m["first_abroad"] is None
+    assert m["farthest_trip"] is None      # 无坐标 → 里程 0 → 不算里程碑
+    assert m["farthest_city"] is None      # 库里无北京 → 无基准
+    assert m["longest_trip"]["days"] == 1  # 这个总有
+
+
+def test_milestones_empty(session):
+    m = lifetime.lifetime_stats([])["milestones"]
+    assert all(v is None for v in m.values())
