@@ -122,8 +122,9 @@
 | 文件 | 覆盖 |
 |------|------|
 | `tests/test_lifetime.py`（新） | 聚合层。重点是第 3 节的口径决策：跨年旅程整趟归开始年、在途天数重叠去重、空档年补零、新解锁国家年份归属、里程碑数据不足时返回 `None`、同比在上一年无旅程时为 `None` |
-| `tests/test_insights_routes.py`（新） | 总览页 200 且含关键数字；`/insights/<year>` 有效年份 200、无效年份 404；空库时总览页不炸（KPI 全零、里程碑全空） |
-| `tests/test_trips_crud.py`（改） | 列表页瘦身后，断言看板已不在列表页 |
+| `tests/test_insights_routes.py`（新） | 总览页 200 且含关键数字；`/insights/<year>` 有效年份 200、无效年份 404；空库时总览页不炸（KPI 全零、里程碑全空）；列表页瘦身后看板已不在列表页 |
+
+`tests/test_trips_crud.py` 无需改动——现有测试只断言旅程标题出现在列表页（`test_list_shows_trip`），不涉及看板内容，瘦身后依然通过。
 
 造数据沿用 `test_stats.py` 的 `build_trip` 风格；路由测试参照 `test_stats_page.py`。
 
