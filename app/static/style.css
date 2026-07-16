@@ -1116,3 +1116,15 @@ a.ms-card:hover { transform: translateY(-2px); transition: transform .15s; }
 .ms-label { font-size: .8rem; color: #888; }
 .ms-value { font-size: 1.15rem; font-weight: 600; }
 .ms-sub { font-size: .78rem; color: #999; }
+
+/* ---- 逐年对比图 ---- */
+.year-wrap { height: 320px; position: relative; }
+
+/* ---- 旅程列表（看板搬去 /insights/ 后的纯列表） ---- */
+.trip-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.trip-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.trip-item-main { display: flex; flex-direction: column; gap: 3px; text-decoration: none; color: inherit; flex: 1; }
+.trip-item-title { font-size: 1.05rem; font-weight: 600; }
+.trip-item-meta { font-size: .82rem; color: #999; }
+.trip-item-story { font-size: .85rem; color: #4a9fc9; text-decoration: none; white-space: nowrap; }
+.trip-item-story:hover { text-decoration: underline; }

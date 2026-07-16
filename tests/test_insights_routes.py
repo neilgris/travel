@@ -48,3 +48,22 @@ def test_overview_empty_db(client, app):
 def test_nav_has_insights_link(client, app):
     resp = client.get("/trips/")
     assert 'href="/insights/"' in resp.get_data(as_text=True)
+
+
+def test_overview_has_year_chart_and_board(client, app):
+    seed(app)
+    body = client.get("/insights/").get_data(as_text=True)
+    assert "逐年对比" in body
+    assert 'id="yearChart"' in body
+    assert 'id="compareChart"' in body     # 各旅程花费对比（从列表页搬来）
+    assert 'id="globalCat"' in body        # 整体消费构成环图
+    assert "最贵旅程" in body
+
+
+def test_list_page_is_list_only(client, app):
+    seed(app)
+    body = client.get("/trips/").get_data(as_text=True)
+    assert "东京之旅" in body            # 列表本体还在
+    assert "历史总花费" not in body      # 看板已搬走
+    assert 'id="compareChart"' not in body
+    assert "最贵旅程" not in body

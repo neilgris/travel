@@ -12,7 +12,7 @@ from app.models.day import (Day, Entry, DayImage, CATEGORIES,
 from app.services.geocoding import geocode
 from app.services.flags import country_name_from_code
 from app.services.exchange import fetch_rate
-from app.services.stats import trip_stats, trips_overview
+from app.services.stats import trip_stats
 from app.services.distance import trip_distance_km
 from app.services.story import story_data
 from app.services.uploads import save_upload, delete_upload
@@ -70,27 +70,7 @@ def _city_groups_for_picker():
 @bp.route("/")
 def list():
     trips = Trip.query.order_by(Trip.start_date.desc()).all()
-    overview = trips_overview(trips)
-    total_distance_km = sum(trip_distance_km(t) for t in trips)
-    # 旅程标题是用户自由文本，进内联 <script> 前统一走 _safe_json 转义（同 stats 页）。
-    chart_trips = [{
-        "id": r["id"],
-        "title": r["title"],
-        "total": float(r["total_cny"]),
-        "start": r["start_date"].isoformat(),
-        "end": r["end_date"].isoformat(),
-        "days": (r["end_date"] - r["start_date"]).days + 1,
-        "by_category": {cat: float(v) for cat, v in r["by_category"].items()},
-    } for r in overview["trips"]]
-    global_cat = {cat: float(v) for cat, v in overview["global_by_category"].items()}
-    return render_template(
-        "trips/list.html",
-        overview=overview,
-        categories=CATEGORIES,
-        total_distance_km=total_distance_km,
-        chart_trips_json=_safe_json(chart_trips),
-        global_cat_json=_safe_json(global_cat),
-    )
+    return render_template("trips/list.html", trips=trips)
 
 
 def _apply_form(trip):
