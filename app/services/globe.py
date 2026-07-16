@@ -53,13 +53,18 @@ def build_globe_data():
             cities[frm["name"]] = frm
             cities[to["name"]] = to
 
+        days = None
+        if trip.start_date and trip.end_date:
+            days = (trip.end_date - trip.start_date).days + 1
+
         out_trips.append({
             "id": trip.id,
             "title": trip.title,
             "start_date": trip.start_date.isoformat() if trip.start_date else None,
             "end_date": trip.end_date.isoformat() if trip.end_date else None,
+            "days": days,
             "color": color,
-            "url": f"/trips/{trip.id}",
+            "url": f"/trips/{trip.id}/story",
             "modes": modes,
             "arcs": arcs,
         })

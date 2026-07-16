@@ -29,7 +29,7 @@
                 <span class="ti-modes">{% for m in t.modes %}{{ m | transport_emoji }}{% endfor %}</span>
               {% endif %}
             </span>
-            <span class="ti-meta">{{ t.start_date }} → {{ t.end_date }}</span>
+            <span class="ti-meta">{{ t.start_date }} → {{ t.end_date }}{% if t.days %} · {{ t.days }}天{% endif %}</span>
           </span>
         </a>
       {% else %}
