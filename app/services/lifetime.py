@@ -16,8 +16,11 @@ import datetime as dt
 from decimal import Decimal
 
 from app.models.city import City
+from app.models.day import CATEGORIES
 from app.services.distance import haversine_km, trip_distance_km
 from app.services.stats import to_cny, trip_stats, trips_overview
+# _point 复用故事页的城市点整形（有经纬度才算有效），避免两处各写一遍。
+from app.services.story import _point
 
 # 住处：most_visited_city 的排除项、farthest_city 的距离基准。
 # 与 stats.trips_overview 里 top_cities 排除北京的口径一致。
@@ -183,4 +186,111 @@ def lifetime_stats(trips):
         "milestones": _milestones(trips),
         "by_year": rows,
         "busiest_year": _busiest_year(rows),
+    }
+
+
+def _year_map(year_trips):
+    """那年所有旅程的路线叠在一张图上，喂给 story-map.js 的 STORY_MAP.render()。
+
+    不带 day_cities：年度报告没有「按天高亮」，只画全年足迹。
+    """
+    route, cities, seen = [], [], set()
+    for t in year_trips:
+        for leg in t.legs:   # Trip.legs 已按 seq 排序
+            frm, to = _point(leg.from_city), _point(leg.to_city)
+            if frm is None or to is None:
+                continue
+            route.append({"from": frm, "to": to})
+            for p in (frm, to):
+                if p["name"] not in seen:
+                    seen.add(p["name"])
+                    cities.append(dict(p))
+    for t in year_trips:
+        for d in t.days:
+            # 不在任何 Leg 端点上的天也画成点（同 story._map_data 的口径）
+            p = _point(d.city)
+            if p and p["name"] not in seen:
+                seen.add(p["name"])
+                cities.append(dict(p))
+    return {"route": route, "cities": cities}
+
+
+def _superlatives(year_trips):
+    """年度之最：最贵的一顿饭 / 最贵的一次住宿 / 花得最多的一天 / 走得最远的一趟。"""
+    best = {"best_meal": None, "best_stay": None, "biggest_day": None}
+    cat_key = {"吃饭": "best_meal", "住宿": "best_stay"}
+    for t in year_trips:
+        rate_map = {c.currency_code: Decimal(c.rate) for c in t.currencies}
+        for d in sorted(t.days, key=lambda x: x.date):
+            day_total = Decimal("0.00")
+            for e in d.entries:
+                cny = to_cny(e.amount, e.currency_code, rate_map)
+                day_total += cny
+                key = cat_key.get(e.category)
+                if key and (best[key] is None or cny > best[key]["cny"]):
+                    best[key] = {"title": e.title, "cny": cny, "date": d.date,
+                                 "trip_id": t.id, "trip_title": t.title}
+            if day_total > 0 and (best["biggest_day"] is None
+                                  or day_total > best["biggest_day"]["cny"]):
+                best["biggest_day"] = {
+                    "cny": day_total, "date": d.date,
+                    "city": d.city.name if d.city else None,
+                    "trip_id": t.id, "trip_title": t.title,
+                }
+    best["farthest_trip"] = _farthest_trip(year_trips)
+    return best
+
+
+def year_report(trips, year):
+    """某一年的年度报告数据；该年无旅程返回 None（路由据此 404）。"""
+    year_trips = _sorted([t for t in trips if t.start_date.year == year])
+    if not year_trips:
+        return None
+
+    years = sorted({t.start_date.year for t in trips})
+    idx = years.index(year)
+
+    total = Decimal("0.00")
+    by_category = {cat: Decimal("0.00") for cat in CATEGORIES}
+    trip_rows = []
+    for t in year_trips:
+        s = trip_stats(t)
+        total += s["total_cny"]
+        for cat in CATEGORIES:
+            by_category[cat] += s["by_category"][cat]
+        trip_rows.append({
+            "id": t.id, "title": t.title,
+            "start_date": t.start_date, "end_date": t.end_date,
+            "cities": [c.name for c in t.cities],
+            "total_cny": s["total_cny"],
+        })
+
+    prev_year = years[idx - 1] if idx > 0 else None
+    prev_total = None
+    if prev_year is not None:
+        prev_total = sum((trip_stats(t)["total_cny"] for t in trips
+                          if t.start_date.year == prev_year), Decimal("0.00"))
+
+    countries = set()
+    for t in year_trips:
+        countries |= _trip_countries(t)
+    new_countries = sorted(c for c, y in _first_year_by_country(trips).items()
+                           if y == year)
+
+    return {
+        "year": year,
+        "years": years,
+        "prev_year": prev_year,
+        "next_year": years[idx + 1] if idx < len(years) - 1 else None,
+        "trip_count": len(year_trips),
+        "country_count": len(countries),
+        "total_cny": total,
+        "days_on_road": _days_on_road(year_trips),
+        "distance_km": sum(trip_distance_km(t) for t in year_trips),
+        "map": _year_map(year_trips),
+        "new_countries": new_countries,
+        "trips": trip_rows,
+        "by_category": by_category,
+        "prev_total_cny": prev_total,
+        "superlatives": _superlatives(year_trips),
     }

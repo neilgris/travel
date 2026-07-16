@@ -177,3 +177,77 @@ def test_by_year_empty(session):
     s = lifetime.lifetime_stats([])
     assert s["by_year"] == []
     assert s["busiest_year"] is None
+
+
+def test_year_report_sections(session):
+    bj = make_city(session, "北京", lat=39.90, lng=116.41)
+    tokyo = make_city(session, "东京", country="日本", lat=35.68, lng=139.69)
+    prev = make_trip(session, "去年", dt.date(2025, 6, 1), dt.date(2025, 6, 2),
+                     legs=[(bj, bj)],
+                     days=[(dt.date(2025, 6, 1), bj, [("购物", "书", "50", "CNY")])])
+    t = make_trip(
+        session, "东京", dt.date(2026, 4, 1), dt.date(2026, 4, 3),
+        legs=[(bj, tokyo)],
+        days=[
+            (dt.date(2026, 4, 1), tokyo, [("吃饭", "寿司", "4000", "JPY"),
+                                          ("住宿", "酒店", "6000", "JPY")]),
+            (dt.date(2026, 4, 2), tokyo, [("吃饭", "拉面", "2000", "JPY")]),
+        ],
+        currencies=[("JPY", "20")],
+    )
+    r = lifetime.year_report([prev, t], 2026)
+
+    # 第 1 节 封面
+    assert r["year"] == 2026
+    assert r["trip_count"] == 1
+    assert r["country_count"] == 2          # 中国 + 日本
+    assert r["days_on_road"] == 3
+    assert r["total_cny"] == Decimal("600.00")   # (4000+6000+2000)/20
+    # 年份切换器
+    assert r["years"] == [2025, 2026]
+    assert r["prev_year"] == 2025
+    assert r["next_year"] is None
+    # 第 2 节 地图
+    assert {c["name"] for c in r["map"]["cities"]} == {"北京", "东京"}
+    assert len(r["map"]["route"]) == 1
+    # 第 3 节 新解锁国家
+    assert r["new_countries"] == ["日本"]   # 中国在 2025 已解锁
+    # 第 4 节 旅程清单
+    assert [x["id"] for x in r["trips"]] == [t.id]
+    assert r["trips"][0]["total_cny"] == Decimal("600.00")
+    # 第 5 节 花费构成 + 同比
+    assert r["by_category"]["吃饭"] == Decimal("300.00")
+    assert r["by_category"]["住宿"] == Decimal("300.00")
+    assert r["prev_total_cny"] == Decimal("50.00")
+    # 第 6 节 年度之最
+    s = r["superlatives"]
+    assert s["best_meal"]["title"] == "寿司"
+    assert s["best_meal"]["cny"] == Decimal("200.00")
+    assert s["best_stay"]["title"] == "酒店"
+    assert s["biggest_day"]["date"] == dt.date(2026, 4, 1)   # 500 > 100
+    assert s["biggest_day"]["cny"] == Decimal("500.00")
+    assert s["farthest_trip"]["trip_id"] == t.id
+
+
+def test_year_report_missing_year(session):
+    c = make_city(session, "上海")
+    t = make_trip(session, "a", dt.date(2026, 1, 1), dt.date(2026, 1, 2), legs=[(c, c)])
+    assert lifetime.year_report([t], 2020) is None
+    assert lifetime.year_report([], 2026) is None
+
+
+def test_year_report_prev_total_none_when_no_prev_year(session):
+    c = make_city(session, "上海")
+    t = make_trip(session, "a", dt.date(2026, 1, 1), dt.date(2026, 1, 2), legs=[(c, c)])
+    r = lifetime.year_report([t], 2026)
+    assert r["prev_total_cny"] is None
+    assert r["prev_year"] is None
+
+
+def test_year_report_superlatives_none_without_entries(session):
+    c = make_city(session, "上海")
+    t = make_trip(session, "a", dt.date(2026, 1, 1), dt.date(2026, 1, 2), legs=[(c, c)])
+    s = lifetime.year_report([t], 2026)["superlatives"]
+    assert s["best_meal"] is None
+    assert s["best_stay"] is None
+    assert s["biggest_day"] is None
