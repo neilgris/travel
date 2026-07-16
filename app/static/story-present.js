@@ -108,20 +108,49 @@
     for (const dc of DAY_CITIES) if (dc) return dc;      // 第一个有坐标的天
     return CITIES[0] || null;
   }
+  // 两点角距离（度，等距近似即可，过场用不求大圆精确）。
+  function angDist(a, b) {
+    const cos = Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180);
+    return Math.hypot(a.lat - b.lat, (a.lng - b.lng) * cos);
+  }
+  // 按可视跨度（度）估相机高度：跨度越大越拉远，够看清两端即可。
+  function altForSpan(deg) {
+    return Math.max(0.35, Math.min(2.5, deg / 40 + 0.3));
+  }
+  // 停留城市的「近景高度」：由目的地聚集区跨度决定——集中在一小片（如意大利/瑞士）就贴近拉大，
+  // 分散的行程（如美西）就适当拉远。聚集区 = 住过的城市去掉出发地（出发地通常是北京，几乎每程都有）。
+  let _localAlt = null;
+  function localAlt() {
+    if (_localAlt != null) return _localAlt;
+    const home = ROUTE.length ? ROUTE[0].from.name : null;
+    let pts = CITIES.filter((c) => (c.days || 0) >= 1 && c.name !== home);
+    if (!pts.length) pts = CITIES;
+    let latMin = 90, latMax = -90, lngMin = 180, lngMax = -180;
+    pts.forEach((c) => {
+      latMin = Math.min(latMin, c.lat); latMax = Math.max(latMax, c.lat);
+      lngMin = Math.min(lngMin, c.lng); lngMax = Math.max(lngMax, c.lng);
+    });
+    const span = Math.max(latMax - latMin, lngMax - lngMin);
+    _localAlt = Math.max(0.3, Math.min(0.9, span / 50 + 0.25));
+    return _localAlt;
+  }
   function openingFlight() {
     const c = firstCity();
     if (!c) return;
     world.arcsData([]);
     world.pointOfView({ lat: c.lat, lng: c.lng, altitude: 2.5 }, 0);
-    world.pointOfView({ lat: c.lat, lng: c.lng, altitude: 0.9 }, 3500);
+    world.pointOfView({ lat: c.lat, lng: c.lng, altitude: localAlt() }, 3500);
   }
   function flyTo(s) {
     // 单条弧线一次性画出（dash 一个周期 > 页时长，不会循环重画）。
     world.arcsData([{ startLat: s.from.lat, startLng: s.from.lng,
                       endLat: s.to.lat, endLng: s.to.lng }])
       .arcDashLength(1).arcDashGap(2).arcDashInitialGap(1).arcDashAnimateTime(3000);
-    world.pointOfView({ lat: s.from.lat, lng: s.from.lng, altitude: 1.0 }, 0);
-    world.pointOfView({ lat: s.to.lat, lng: s.to.lng, altitude: 1.0 }, 2800);
+    // 起点拉到够看清这一段（远程 hop 拉远看全程），落到目的地近景（集中的行程就贴得近）。
+    const near = localAlt();
+    const startAlt = Math.max(near, altForSpan(angDist(s.from, s.to)));
+    world.pointOfView({ lat: s.from.lat, lng: s.from.lng, altitude: startAlt }, 0);
+    world.pointOfView({ lat: s.to.lat, lng: s.to.lng, altitude: near }, 2800);
   }
   function endingView() {
     world.arcsData(ROUTE.map((r) => ({
