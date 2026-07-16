@@ -1104,7 +1104,13 @@ canvas { max-width: 100%; }
 }
 
 /* ---- 人生足迹总览：KPI 六列 + 里程碑卡 ---- */
-.kpi-row-6 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+/* 六列比列表页原来的四列挤得多：历史总花费是七位数（￥1,416,487.19），
+   等分到 165px 的列里会被裁成「￥1,416,487.」。让总花费卡横跨两列；列宽下限
+   相应调小（150→130），否则七个格排不进六列会把最后一张卡挤到第二行；
+   数字字号也收一档（1.7→1.45rem），让总里程「232,891 km」在窄列里放得下。 */
+.kpi-row-6 { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.kpi-row-6 .kpi-value { font-size: 1.45rem; }
+.kpi-row-6 .kpi-money { grid-column: span 2; }
 
 .ms-row {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));

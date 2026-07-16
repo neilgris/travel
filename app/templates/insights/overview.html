@@ -13,7 +13,7 @@
 <p class="muted">还没有旅程，<a href="{{ url_for('trips.create') }}">去创建一个 →</a></p>
 {% else %}
 <div class="kpi-row kpi-row-6">
-  <div class="card kpi">
+  <div class="card kpi kpi-money">
     <span class="kpi-label">历史总花费</span>
     <span class="kpi-value">￥{{ '{:,.2f}'.format(s.grand_total) }}</span>
   </div>
