@@ -9,16 +9,16 @@
 {% if trips %}
 <ul class="trip-list">
   {% for t in trips %}
-  <li class="card trip-item">
-    <a class="trip-item-main" href="{{ url_for('trips.detail', trip_id=t.id) }}">
-      <span class="trip-item-title">{{ t.title or '未命名' }}</span>
-      <span class="trip-item-meta">
+  <li class="card tl-item">
+    <a class="tl-main" href="{{ url_for('trips.detail', trip_id=t.id) }}">
+      <span class="tl-title">{{ t.title or '未命名' }}</span>
+      <span class="tl-meta">
         {{ t.start_date }} ~ {{ t.end_date }}
         · {{ (t.end_date - t.start_date).days + 1 }} 天
         {% if t.cities %}· {{ t.cities | map(attribute='name') | join(' · ') }}{% endif %}
       </span>
     </a>
-    <a class="trip-item-story" href="{{ url_for('trips.story', trip_id=t.id) }}">故事 →</a>
+    <a class="tl-story" href="{{ url_for('trips.story', trip_id=t.id) }}">故事 →</a>
   </li>
   {% endfor %}
 </ul>
