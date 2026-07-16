@@ -44,6 +44,8 @@
 
 /* 当前天在地图上高亮时，让对应城市点变色（JS 加 .is-active 到城市点）。 */
 #story-map .city-dot.is-active { fill: #e8792b; }
+#story-map .city-label { fill: #333; }
+#story-map .city-label.is-active { fill: #e8792b; font-weight: 600; }
 
 /* 灯箱 */
 .story-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.85);

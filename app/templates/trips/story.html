@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ trip.title }} · 故事{% endblock %}
 {% block main_class %}story-main{% endblock %}
-{% block content %}
+{% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='story.css') }}">
-
+{% endblock %}
+{% block content %}
 <header class="story-hero">
   <div class="story-actions">
     {% if story.days %}

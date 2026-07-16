@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>{% block title %}旅游记录{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
 <body>

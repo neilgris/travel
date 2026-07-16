@@ -83,6 +83,24 @@ def test_map_route_and_cities(session):
     assert m["day_cities"] == [{"lat": 35.6, "lng": 139.7}]
 
 
+def test_map_cities_carry_day_counts(session):
+    """cities 每项带 days（停留天数）：地图取景据此优先聚焦住过的城市，转机点为 0。"""
+    t = _mk_trip(session)
+    bj = City(name="北京", latitude=39.9, longitude=116.4)   # 出发地，无 Day
+    tk = City(name="东京", latitude=35.6, longitude=139.7)   # 住 2 天
+    session.add_all([bj, tk])
+    t.legs = [Leg(seq=1, from_city=bj, to_city=tk, transport_mode="飞机")]
+    t.days = [Day(date=dt.date(2026, 1, 1), city=tk),
+              Day(date=dt.date(2026, 1, 2), city=tk)]
+    session.commit()
+
+    m = story_data(t)["map"]
+    days_by_name = {c["name"]: c["days"] for c in m["cities"]}
+    assert days_by_name == {"北京": 0, "东京": 2}
+    # route 端点不应被污染上 days 字段（与既有断言口径一致）。
+    assert m["route"][0]["from"] == {"lat": 39.9, "lng": 116.4, "name": "北京"}
+
+
 def test_map_skips_missing_coords(session):
     t = _mk_trip(session)
     bj = City(name="北京", latitude=39.9, longitude=116.4)

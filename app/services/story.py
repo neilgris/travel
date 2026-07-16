@@ -40,6 +40,16 @@ def _day_content(day, rate_map):
 
 def _map_data(trip, sorted_days):
     route, cities, seen = [], [], set()
+    # 每城的停留天数：供前端地图取景优先聚焦「住过的城市」，让转机/出发地不撑大画框。
+    day_counts = {}
+    for d in sorted_days:
+        if d.city and d.city.name:
+            day_counts[d.city.name] = day_counts.get(d.city.name, 0) + 1
+
+    def _city(p):
+        # 城市点副本 + 天数（副本避免与 route 端点共享同一 dict）。
+        return {**p, "days": day_counts.get(p["name"], 0)}
+
     for leg in trip.legs:  # Trip.legs 已按 seq 排序
         frm, to = _point(leg.from_city), _point(leg.to_city)
         if frm is None or to is None:
@@ -48,14 +58,14 @@ def _map_data(trip, sorted_days):
         for p in (frm, to):
             if p["name"] not in seen:
                 seen.add(p["name"])
-                cities.append(p)
+                cities.append(_city(p))
     day_cities = []
     for d in sorted_days:
         p = _point(d.city)
         # 各天城市也画成点（含无 Leg 的旅程、以及不在任何 Leg 端点上的天），按名去重。
         if p and p["name"] not in seen:
             seen.add(p["name"])
-            cities.append(p)
+            cities.append(_city(p))
         day_cities.append({"lat": p["lat"], "lng": p["lng"]} if p else None)
     return {"route": route, "cities": cities, "day_cities": day_cities}
 
