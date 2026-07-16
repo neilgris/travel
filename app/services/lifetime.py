@@ -13,10 +13,11 @@
 设计见 docs/specs/2026-07-17-insights-design.md。
 """
 import datetime as dt
+from decimal import Decimal
 
 from app.models.city import City
 from app.services.distance import haversine_km, trip_distance_km
-from app.services.stats import trips_overview
+from app.services.stats import to_cny, trip_stats, trips_overview
 
 # 住处：most_visited_city 的排除项、farthest_city 的距离基准。
 # 与 stats.trips_overview 里 top_cities 排除北京的口径一致。
@@ -128,12 +129,58 @@ def _milestones(trips):
     }
 
 
+def _first_year_by_country(trips):
+    """{国家: 首次到访年份}——按旅程 start_date 的年份归属。"""
+    first = {}
+    for t in _sorted(trips):
+        for country in _trip_countries(t):
+            first.setdefault(country, t.start_date.year)
+    return first
+
+
+def _year_rows(trips):
+    """逐年聚合，年份连续（空档年补零）。空档年本身是信息（如疫情停摆）。"""
+    by_year = {}
+    for t in trips:
+        by_year.setdefault(t.start_date.year, []).append(t)
+    if not by_year:
+        return []
+
+    new_by_year = {}
+    for country, year in _first_year_by_country(trips).items():
+        new_by_year.setdefault(year, []).append(country)
+
+    rows = []
+    for year in range(min(by_year), max(by_year) + 1):
+        year_trips = by_year.get(year, [])
+        total = sum((trip_stats(t)["total_cny"] for t in year_trips), Decimal("0.00"))
+        rows.append({
+            "year": year,
+            "trip_count": len(year_trips),
+            "total_cny": total,
+            "distance_km": sum(trip_distance_km(t) for t in year_trips),
+            "days_on_road": _days_on_road(year_trips),
+            "new_countries": sorted(new_by_year.get(year, [])),
+        })
+    return rows
+
+
+def _busiest_year(rows):
+    """旅程数最多的年份；并列取最早那年。"""
+    if not rows:
+        return None
+    return min(rows, key=lambda r: (-r["trip_count"], r["year"]))["year"]
+
+
 def lifetime_stats(trips):
     """人生足迹总览页数据：trips_overview 的全部键 + 里程/在途天数/里程碑/逐年。"""
     overview = trips_overview(trips)
+    rows = _year_rows(trips)
     return {
         **overview,
         "total_distance_km": sum(trip_distance_km(t) for t in trips),
         "days_on_road": _days_on_road(trips),
         "milestones": _milestones(trips),
+        "by_year": rows,
+        "busiest_year": _busiest_year(rows),
     }

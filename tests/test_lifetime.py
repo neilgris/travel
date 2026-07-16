@@ -120,3 +120,60 @@ def test_milestones_none_when_data_missing(session):
 def test_milestones_empty(session):
     m = lifetime.lifetime_stats([])["milestones"]
     assert all(v is None for v in m.values())
+
+
+def test_by_year_fills_gap_years(session):
+    c = make_city(session, "上海")
+    t1 = make_trip(session, "a", dt.date(2023, 1, 1), dt.date(2023, 1, 2), legs=[(c, c)])
+    t2 = make_trip(session, "b", dt.date(2026, 1, 1), dt.date(2026, 1, 2), legs=[(c, c)])
+    rows = lifetime.lifetime_stats([t1, t2])["by_year"]
+    # 2024、2025 无旅程也要补零，趋势图才看得出停摆
+    assert [r["year"] for r in rows] == [2023, 2024, 2025, 2026]
+    assert rows[1]["trip_count"] == 0
+    assert rows[1]["total_cny"] == Decimal("0.00")
+    assert rows[1]["days_on_road"] == 0
+    assert rows[1]["new_countries"] == []
+
+
+def test_cross_year_trip_belongs_to_start_year(session):
+    bj = make_city(session, "北京", lat=39.90, lng=116.41)
+    tp = make_city(session, "台北", country="台湾", lat=25.03, lng=121.57)
+    # 2016-12-29 → 2017-01-02：整趟归 2016，不按天拆
+    t = make_trip(session, "台北", dt.date(2016, 12, 29), dt.date(2017, 1, 2),
+                  legs=[(bj, tp)],
+                  days=[(dt.date(2017, 1, 1), tp, [("吃饭", "牛肉面", "100", "CNY")])],
+                  currencies=[])
+    rows = {r["year"]: r for r in lifetime.lifetime_stats([t])["by_year"]}
+    assert rows[2016]["trip_count"] == 1
+    assert rows[2016]["days_on_road"] == 5          # 12/29~1/2 整段算 2016
+    assert rows[2016]["total_cny"] == Decimal("100.00")   # 2017-01-01 的消费也归 2016
+    assert rows[2016]["new_countries"] == ["中国", "台湾"]
+    assert 2017 not in rows                          # 只有这一趟，年份跨度到 2016 为止
+
+
+def test_new_countries_by_first_visit_start_year(session):
+    bj = make_city(session, "北京", lat=39.90, lng=116.41)
+    tokyo = make_city(session, "东京", country="日本", lat=35.68, lng=139.69)
+    t1 = make_trip(session, "东京 1", dt.date(2025, 1, 1), dt.date(2025, 1, 2),
+                   legs=[(bj, tokyo)])
+    t2 = make_trip(session, "东京 2", dt.date(2026, 1, 1), dt.date(2026, 1, 2),
+                   legs=[(bj, tokyo)])
+    rows = {r["year"]: r for r in lifetime.lifetime_stats([t1, t2])["by_year"]}
+    assert rows[2025]["new_countries"] == ["中国", "日本"]
+    assert rows[2026]["new_countries"] == []   # 第二次去日本不算新解锁
+
+
+def test_busiest_year(session):
+    c = make_city(session, "上海")
+    trips = [
+        make_trip(session, "a", dt.date(2025, 1, 1), dt.date(2025, 1, 2), legs=[(c, c)]),
+        make_trip(session, "b", dt.date(2026, 1, 1), dt.date(2026, 1, 2), legs=[(c, c)]),
+        make_trip(session, "c", dt.date(2026, 3, 1), dt.date(2026, 3, 2), legs=[(c, c)]),
+    ]
+    assert lifetime.lifetime_stats(trips)["busiest_year"] == 2026
+
+
+def test_by_year_empty(session):
+    s = lifetime.lifetime_stats([])
+    assert s["by_year"] == []
+    assert s["busiest_year"] is None
