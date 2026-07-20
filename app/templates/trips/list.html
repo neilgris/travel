@@ -6,22 +6,34 @@
   <a class="btn" href="{{ url_for('trips.create') }}">+ 创建旅程</a>
 </div>
 
-{% if trips %}
+{% if year_groups %}
+{% for year, trips in year_groups %}
+{# 每年独立 section：让年份标题的 sticky 只在本年区间内生效，否则各年标题会叠在一起 #}
+<section class="tl-group">
+<h2 class="tl-year">{{ year }} <span>{{ trips | length }} 次</span></h2>
 <ul class="trip-list">
   {% for t in trips %}
   <li class="card tl-item">
     <a class="tl-main" href="{{ url_for('trips.detail', trip_id=t.id) }}">
       <span class="tl-title">{{ t.title or '未命名' }}</span>
       <span class="tl-meta">
-        {{ t.start_date }} ~ {{ t.end_date }}
-        · {{ (t.end_date - t.start_date).days + 1 }} 天
-        {% if t.cities %}· {{ t.cities | map(attribute='name') | join(' · ') }}{% endif %}
+        {# 年份已在分组标题上，这里只留月日；跨年才补上结束年份 #}
+        {{ '%02d.%02d' % (t.start_date.month, t.start_date.day) }}–{%
+          if t.end_date.year != t.start_date.year %}{{ t.end_date.year }}.{% endif
+        %}{{ '%02d.%02d' % (t.end_date.month, t.end_date.day) }}
+        · {{ (t.end_date - t.start_date).days + 1 }}天
+        {% if t.cities %}
+          {% set names = t.cities | map(attribute='name') | list %}
+          · {{ names[:3] | join('·') }}{% if names | length > 3 %}…共{{ names | length }}城{% endif %}
+        {% endif %}
       </span>
     </a>
-    <a class="tl-story" href="{{ url_for('trips.story', trip_id=t.id) }}">故事 →</a>
+    <a class="tl-story" href="{{ url_for('trips.story', trip_id=t.id) }}" title="旅程故事">📖</a>
   </li>
   {% endfor %}
 </ul>
+</section>
+{% endfor %}
 {% else %}
 <p class="muted">还没有旅程，点上面创建一个。</p>
 {% endif %}

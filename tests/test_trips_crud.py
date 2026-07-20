@@ -108,3 +108,22 @@ def test_list_shows_trip(client, app):
     }, follow_redirects=True)
     resp = client.get("/trips/")
     assert "展示之旅" in resp.get_data(as_text=True)
+
+
+def test_list_groups_trips_by_year_desc(client, app):
+    with app.app_context():
+        db.session.add_all([
+            Trip(title="老旅程", start_date=dt.date(2024, 3, 1),
+                 end_date=dt.date(2024, 3, 3)),
+            Trip(title="新旅程", start_date=dt.date(2026, 2, 1),
+                 end_date=dt.date(2026, 2, 3)),
+            Trip(title="同年旅程", start_date=dt.date(2026, 5, 1),
+                 end_date=dt.date(2026, 5, 3)),
+        ])
+        db.session.commit()
+    html = client.get("/trips/").get_data(as_text=True)
+    # 年份分组标题按年倒序出现，且带当年旅程数
+    assert html.index("2026") < html.index("2024")
+    assert "2 次" in html and "1 次" in html
+    # 同一年内仍按开始日期倒序
+    assert html.index("同年旅程") < html.index("新旅程") < html.index("老旅程")

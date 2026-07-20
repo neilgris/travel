@@ -1130,10 +1130,32 @@ a.ms-card:hover { transform: translateY(-2px); transition: transform .15s; }
 /* 前缀用 tl-（trip list）而不是 trip-item：.trip-item 已被首页地球侧栏
    （.trip-item / .ti-dot / .ti-body，见上方「右侧旅程列表」块）占用，
    同名会覆盖侧栏的 flex-start 对齐等样式，之前踩过一次坑。 */
-.trip-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-.tl-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.tl-main { display: flex; flex-direction: column; gap: 3px; text-decoration: none; color: inherit; flex: 1; }
-.tl-title { font-size: 1.05rem; font-weight: 600; }
-.tl-meta { font-size: .82rem; color: #999; }
-.tl-story { font-size: .85rem; color: #4a9fc9; text-decoration: none; white-space: nowrap; }
-.tl-story:hover { text-decoration: underline; }
+/* 年份分组标题：吸顶，滚动时始终知道自己在哪一年 */
+.tl-year {
+  position: sticky; top: 53px; z-index: 2;  /* 53px = .topnav 高度，避免被吸顶导航压住 */
+  margin: 1.1rem 0 .5rem; padding: .3rem 0;
+  font-size: .95rem; font-weight: 700; letter-spacing: .04em;
+  background: var(--bg, #fff);
+}
+.tl-year span { font-weight: 400; font-size: .8rem; color: var(--muted); margin-left: .4rem; }
+
+/* 双列 + 单行卡片：窄屏自动退回单列 */
+.trip-list {
+  list-style: none; padding: 0; margin: 0;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+}
+@media (max-width: 720px) {
+  .trip-list { grid-template-columns: 1fr; }
+}
+.tl-item { display: flex; align-items: baseline; gap: .6rem; padding: .55rem .7rem; overflow: hidden; }
+.tl-main {
+  display: flex; align-items: baseline; gap: .5rem; min-width: 0; flex: 1;
+  text-decoration: none; color: inherit;
+}
+.tl-title { font-size: .95rem; font-weight: 600; white-space: nowrap; }
+.tl-meta {
+  font-size: .78rem; color: #999; min-width: 0; flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tl-story { font-size: .95rem; text-decoration: none; opacity: .45; }
+.tl-item:hover .tl-story { opacity: 1; }

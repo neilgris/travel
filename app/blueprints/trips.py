@@ -2,6 +2,7 @@ import datetime as dt
 from decimal import Decimal, InvalidOperation
 from flask import (Blueprint, render_template, request, redirect,
                    url_for, flash, current_app, abort)
+from sqlalchemy.orm import joinedload
 from app.extensions import db
 from app.blueprints._json import safe_json
 from app.models.trip import Trip, Leg, TripCurrency
@@ -69,8 +70,19 @@ def _city_groups_for_picker():
 
 @bp.route("/")
 def list():
-    trips = Trip.query.order_by(Trip.start_date.desc()).all()
-    return render_template("trips/list.html", trips=trips)
+    # joinedload：模板要读 t.cities（走 legs→city），不预加载会一程一查（N+1）
+    trips = (Trip.query
+             .options(joinedload(Trip.legs).joinedload(Leg.from_city),
+                      joinedload(Trip.legs).joinedload(Leg.to_city))
+             .order_by(Trip.start_date.desc())
+             .all())
+    groups = []  # [(年份, [旅程...])]，年份倒序，年内沿用开始日期倒序
+    for t in trips:
+        year = t.start_date.year
+        if not groups or groups[-1][0] != year:
+            groups.append((year, []))
+        groups[-1][1].append(t)
+    return render_template("trips/list.html", year_groups=groups)
 
 
 def _apply_form(trip):
