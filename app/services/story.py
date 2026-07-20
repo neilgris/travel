@@ -5,6 +5,7 @@ docs/specs/2026-07-14-trip-story-page-design.md。
 """
 from decimal import Decimal
 
+from app.services.distance import has_coords
 from app.services.stats import to_cny
 
 
@@ -13,9 +14,9 @@ def _image_subpath(path):
     return path.split("uploads/", 1)[-1] if "uploads/" in path else path
 
 
-def _point(city):
+def point(city):
     """城市有经纬度才算有效，否则 None。"""
-    if city is None or city.latitude is None or city.longitude is None:
+    if not has_coords(city):
         return None
     return {"lat": city.latitude, "lng": city.longitude, "name": city.name}
 
@@ -51,7 +52,7 @@ def _map_data(trip, sorted_days):
         return {**p, "days": day_counts.get(p["name"], 0)}
 
     for leg in trip.legs:  # Trip.legs 已按 seq 排序
-        frm, to = _point(leg.from_city), _point(leg.to_city)
+        frm, to = point(leg.from_city), point(leg.to_city)
         if frm is None or to is None:
             continue
         route.append({"from": frm, "to": to})
@@ -61,7 +62,7 @@ def _map_data(trip, sorted_days):
                 cities.append(_city(p))
     day_cities = []
     for d in sorted_days:
-        p = _point(d.city)
+        p = point(d.city)
         # 各天城市也画成点（含无 Leg 的旅程、以及不在任何 Leg 端点上的天），按名去重。
         if p and p["name"] not in seen:
             seen.add(p["name"])

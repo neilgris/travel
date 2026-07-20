@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+{% block title %}人生足迹{% endblock %}
+{% set cat_colors = {
+  "吃饭": "#e76f51", "游玩": "#2a9d8f", "购物": "#e9c46a",
+  "住宿": "#4a9fc9", "交通": "#9b8cb5", "其他消费": "#b0a99f"} %}
+{% from "insights/_cards.html" import toplist, comp %}
+{% block content %}
+<div class="list-head">
+  <h1>人生足迹</h1>
+</div>
+
+{% if not s.trip_count %}
+<p class="muted">还没有旅程，<a href="{{ url_for('trips.create') }}">去创建一个 →</a></p>
+{% else %}
+<div class="kpi-row kpi-row-6">
+  <div class="card kpi kpi-money">
+    <span class="kpi-label">历史总花费</span>
+    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.grand_total) }}</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">旅程数</span>
+    <span class="kpi-value">{{ s.trip_count }}</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">在途天数</span>
+    <span class="kpi-value">{{ '{:,}'.format(s.days_on_road) }}</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">总里程</span>
+    <span class="kpi-value">{{ '{:,}'.format(s.total_distance_km) }} <small>km</small></span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">到访国家</span>
+    <span class="kpi-value">{{ s.country_count }}
+      <span class="kpi-flags">{% for f in s.countries | map('country_flag') | unique %}{{ f }}{% endfor %}</span>
+    </span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">到访城市</span>
+    <span class="kpi-value">{{ s.city_count }}</span>
+    {% if s.top_cities %}
+    <span class="kpi-sub">{% for tc in s.top_cities %}{{ tc.city }} {{ tc.count }}{% if not loop.last %} · {% endif %}{% endfor %}</span>
+    {% endif %}
+  </div>
+</div>
+
+{% set m = s.milestones %}
+<div class="ms-row">
+  {% if m.first_abroad %}
+  <a class="card ms-card" href="{{ url_for('trips.detail', trip_id=m.first_abroad.trip_id) }}">
+    <span class="ms-emoji">🛂</span>
+    <span class="ms-label">第一次出国</span>
+    <span class="ms-value">{{ m.first_abroad.countries | map('country_flag') | join('') }}
+      {{ m.first_abroad.countries | join('、') }}</span>
+    <span class="ms-sub">{{ m.first_abroad.date }} · {{ m.first_abroad.title }}</span>
+  </a>
+  {% endif %}
+  {% if m.farthest_trip %}
+  <a class="card ms-card" href="{{ url_for('trips.detail', trip_id=m.farthest_trip.trip_id) }}">
+    <span class="ms-emoji">🛫</span>
+    <span class="ms-label">走得最远的一次</span>
+    <span class="ms-value">{{ '{:,}'.format(m.farthest_trip.distance_km) }} km</span>
+    <span class="ms-sub">{{ m.farthest_trip.date }} · {{ m.farthest_trip.title }}</span>
+  </a>
+  {% endif %}
+  {% if m.longest_trip %}
+  <a class="card ms-card" href="{{ url_for('trips.detail', trip_id=m.longest_trip.trip_id) }}">
+    <span class="ms-emoji">📅</span>
+    <span class="ms-label">最长的一趟</span>
+    <span class="ms-value">{{ m.longest_trip.days }} 天</span>
+    <span class="ms-sub">{{ m.longest_trip.date }} · {{ m.longest_trip.title }}</span>
+  </a>
+  {% endif %}
+  {% if m.most_visited_city %}
+  <div class="card ms-card">
+    <span class="ms-emoji">📍</span>
+    <span class="ms-label">去得最多的城市</span>
+    <span class="ms-value">{{ m.most_visited_city.city }}</span>
+    <span class="ms-sub">{{ m.most_visited_city.count }} 次 ·
+      {{ m.most_visited_city.first_date }} ~ {{ m.most_visited_city.last_date }}</span>
+  </div>
+  {% endif %}
+  {% if m.farthest_city %}
+  <div class="card ms-card">
+    <span class="ms-emoji">🌏</span>
+    <span class="ms-label">离家最远的城市</span>
+    <span class="ms-value">{{ m.farthest_city.country | country_flag }} {{ m.farthest_city.city }}</span>
+    <span class="ms-sub">距北京 {{ '{:,}'.format(m.farthest_city.distance_km) }} km</span>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>逐年对比 <span class="muted card-sub">柱高即当年总花费 · 点击进入年度报告</span></h3>
+  <div class="year-wrap"><canvas id="yearChart"></canvas></div>
+</div>
+
+<div class="overview-grid">
+  <a class="card super-card super-most"
+     href="{{ url_for('trips.detail', trip_id=s.most_expensive.id) }}">
+    <span class="super-emoji">💸</span>
+    <span class="super-label">最贵旅程</span>
+    <span class="super-title">{{ s.most_expensive.title or '未命名' }}</span>
+    <span class="super-amount">￥{{ '{:,.2f}'.format(s.most_expensive.total_cny) }}</span>
+    {{ toplist(s.most_expensive, cat_colors) }}
+    {{ comp(s.most_expensive, categories, cat_colors) }}
+  </a>
+  {% if s.cheapest %}
+  <a class="card super-card super-cheap"
+     href="{{ url_for('trips.detail', trip_id=s.cheapest.id) }}">
+    <span class="super-emoji">🪙</span>
+    <span class="super-label">最便宜旅程</span>
+    <span class="super-title">{{ s.cheapest.title or '未命名' }}</span>
+    <span class="super-amount">￥{{ '{:,.2f}'.format(s.cheapest.total_cny) }}</span>
+    {{ toplist(s.cheapest, cat_colors) }}
+    {{ comp(s.cheapest, categories, cat_colors) }}
+  </a>
+  {% endif %}
+  <div class="card">
+    <h3>整体消费构成</h3>
+    <div class="donut-wrap">
+      <canvas id="globalCat"></canvas>
+      <div class="donut-center">
+        <span class="donut-center-label">总计</span>
+        <span class="donut-center-value">￥{{ '{:,.2f}'.format(s.grand_total) }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>各旅程花费对比 <span class="muted card-sub">柱长即总花费 · 分段为类别构成 · 点击进入详情</span></h3>
+  <div class="compare-wrap" style="height: {{ 52 * s.trip_count + 70 }}px">
+    <canvas id="compareChart"></canvas>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if s.trip_count %}
+<script>
+const CAT_COLORS = {{ cat_colors|tojson }};
+const CATEGORIES = {{ categories|tojson }};
+const trips = {{ chart_trips_json | safe }};
+const globalCat = {{ global_cat_json | safe }};
+const years = {{ years_json | safe }};
+const BUSIEST_YEAR = {{ busiest_year | tojson }};
+
+Chart.defaults.font.family = "system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif";
+Chart.defaults.color = '#55554e';
+Object.assign(Chart.defaults.plugins.tooltip, {
+  backgroundColor: 'rgba(43,43,43,0.92)', padding: 10, cornerRadius: 8,
+  titleFont: { weight: '600' }, displayColors: true, boxPadding: 4,
+  // tooltip 默认开启「跟随光标平滑滑动」动画：每次鼠标移动都会连续多帧重绘整块画布。
+  // 对比图画布高达 3000+px（32 趟旅程），每帧全画布重绘让 hover 明显卡顿（单帧曾飙到 20ms）。
+  // 关掉这个动画让 tooltip 瞬移，单帧从 ~20ms 降到 <1ms。
+  animation: false,
+});
+
+const fmt = v => '￥' + Number(v).toLocaleString('zh-CN',
+  { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function tint(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r + (255 - r) * amt);
+  g = Math.round(g + (255 - g) * amt);
+  b = Math.round(b + (255 - b) * amt);
+  return `rgb(${r},${g},${b})`;
+}
+function radialTint(ctx, area, base) {
+  if (!area) return base;
+  const cx = (area.left + area.right) / 2, cy = (area.top + area.bottom) / 2;
+  const r = Math.min(area.right - area.left, area.bottom - area.top) / 2;
+  const g = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r);
+  g.addColorStop(0, tint(base, 0.3));
+  g.addColorStop(1, base);
+  return g;
+}
+const softShadow = {
+  id: 'softShadow',
+  beforeDatasetsDraw(c) {
+    const x = c.ctx; x.save();
+    x.shadowColor = 'rgba(0,0,0,0.16)'; x.shadowBlur = 14; x.shadowOffsetY = 5;
+  },
+  afterDatasetsDraw(c) { c.ctx.restore(); },
+};
+
+// ---- 各旅程花费对比：横向堆叠柱（一根柱=一趟，分段=类别）----
+const d = s => s.replace(/-/g, '.');
+const labels = trips.map(t => t.title || '未命名');   // tooltip 标题用
+const totals = trips.map(t => t.total);
+const datasets = CATEGORIES.map(cat => ({
+  label: cat,
+  data: trips.map(t => t.by_category[cat] || 0),
+  backgroundColor: CAT_COLORS[cat] || '#b0a99f',
+  borderColor: '#fff', borderWidth: 1.5,
+  borderRadius: 3, borderSkipped: false,
+  maxBarThickness: 30,
+}));
+
+// 柱尾标注该旅程总额
+const totalLabels = {
+  id: 'totalLabels',
+  afterDatasetsDraw(chart) {
+    const { ctx, scales: { x } } = chart;
+    const meta = chart.getDatasetMeta(0);
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.font = "700 12px system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillStyle = '#d65b3d';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    totals.forEach((t, i) => {
+      const bar = meta.data[i];
+      if (!bar) return;
+      ctx.fillText(fmt(t), x.getPixelForValue(t) + 8, bar.y);
+    });
+    ctx.restore();
+  },
+};
+
+// Y 轴用 HTML 覆盖层渲染：名称加粗突出 + 日期/天数，整块是可点链接进详情。
+const LABEL_W = 210;
+const labelOverlay = document.createElement('div');
+labelOverlay.className = 'compare-labels';
+document.querySelector('.compare-wrap').appendChild(labelOverlay);
+const labelEls = trips.map(t => {
+  const a = document.createElement('a');
+  a.className = 'compare-label';
+  a.href = '/trips/' + t.id;
+  const name = document.createElement('span');
+  name.className = 'cl-name';
+  name.textContent = t.title || '未命名';      // textContent 防注入
+  const date = document.createElement('span');
+  date.className = 'cl-date';
+  date.textContent = `${d(t.start)} ~ ${d(t.end)} · ${t.days}天`;
+  a.append(name, date);
+  labelOverlay.appendChild(a);
+  return a;
+});
+// 每次渲染后把 HTML 标签对齐到各自柱子的中心
+const overlayLabels = {
+  id: 'overlayLabels',
+  afterRender(chart) {
+    const meta = chart.getDatasetMeta(0);
+    labelEls.forEach((el, i) => {
+      const bar = meta.data[i];
+      if (!bar) { el.style.display = 'none'; return; }
+      el.style.display = '';
+      el.style.top = bar.y + 'px';
+    });
+  },
+};
+
+new Chart(document.getElementById('compareChart'), {
+  type: 'bar',
+  data: { labels, datasets },
+  options: {
+    indexAxis: 'y',
+    maintainAspectRatio: false,
+    layout: { padding: { right: 96 } },   // 给柱尾总额留白
+    animation: { duration: 800, easing: 'easeOutQuart' },
+    // hover 切换分类时元素高亮的过渡动画也会多帧重绘超高画布，一并瞬时化。
+    // （真正的卡顿主因是 tooltip 跟随动画，已在全局 Chart.defaults 里关掉。）
+    transitions: { active: { animation: { duration: 0 } } },
+    onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+    onClick: (e, els) => {
+      if (!els.length) return;
+      const id = trips[els[0].index].id;
+      window.location = '/trips/' + id;
+    },
+    plugins: {
+      legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 12 } },
+      tooltip: {
+        callbacks: {
+          label: i => {
+            const total = totals[i.dataIndex] || 0;
+            const pct = total ? (i.raw / total * 100).toFixed(0) : 0;
+            return ` ${i.dataset.label}  ${fmt(i.raw)}  (${pct}%)`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: { stacked: true, beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' },
+           ticks: { callback: v => '￥' + Number(v).toLocaleString('zh-CN') } },
+      y: { stacked: true, grid: { display: false },
+           ticks: { display: false },                 // 内置标签隐藏，改用 HTML 覆盖层
+           afterFit(scale) { scale.width = LABEL_W; } }, // 预留左侧标签栏
+    },
+  },
+  plugins: [softShadow, totalLabels, overlayLabels],
+});
+
+// ---- 逐年对比：柱高=当年总花费，点击进年度报告，最忙那年描边高亮 ----
+if (years.length) {
+  new Chart(document.getElementById('yearChart'), {
+    type: 'bar',
+    data: {
+      labels: years.map(y => y.year),
+      datasets: [{
+        data: years.map(y => y.total),
+        backgroundColor: c => radialTint(c.chart.ctx, c.chart.chartArea, '#4a9fc9'),
+        // 最忙的一年描金边，不靠颜色区分（色盲友好）
+        borderColor: years.map(y => y.year === BUSIEST_YEAR ? '#d6a13d' : 'transparent'),
+        borderWidth: years.map(y => y.year === BUSIEST_YEAR ? 2.5 : 0),
+        borderRadius: 4, maxBarThickness: 46,
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      animation: { duration: 800, easing: 'easeOutQuart' },
+      transitions: { active: { animation: { duration: 0 } } },
+      onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+      onClick: (e, els) => {
+        if (!els.length) return;
+        const y = years[els[0].index];
+        if (y.trip_count) window.location = '/insights/' + y.year;   // 空档年没得看
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          displayColors: false,
+          callbacks: {
+            label: i => {
+              const y = years[i.dataIndex];
+              if (!y.trip_count) return ' 这一年没有旅程';
+              return [` 总花费 ${fmt(y.total)}`,
+                      ` ${y.trip_count} 趟 · ${y.days_on_road} 天在途`,
+                      ` ${y.distance_km.toLocaleString('zh-CN')} km`];
+            },
+          },
+        },
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' },
+             ticks: { callback: v => '￥' + Number(v).toLocaleString('zh-CN') } },
+      },
+    },
+    plugins: [softShadow],
+  });
+}
+
+// ---- 整体消费构成环图 ----
+const gLabels = CATEGORIES.filter(c => (globalCat[c] || 0) > 0);
+const gValues = gLabels.map(c => globalCat[c]);
+if (gLabels.length) {
+  const bases = gLabels.map(l => CAT_COLORS[l] || '#b0a99f');
+  // 每个扇形中点标注占比，太窄的扇形（<3%）跳过避免文字挤在一起
+  const sliceLabels = {
+    id: 'sliceLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      const total = gValues.reduce((a, b) => a + b, 0);
+      ctx.save();
+      ctx.shadowBlur = 0;
+      ctx.font = "700 12px system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillStyle = '#fff';
+      meta.data.forEach((arc, i) => {
+        const pct = total ? (gValues[i] / total * 100) : 0;
+        if (pct < 3) return;
+        const angle = (arc.startAngle + arc.endAngle) / 2;
+        const radius = (arc.innerRadius + arc.outerRadius) / 2;
+        const x = arc.x + Math.cos(angle) * radius;
+        const y = arc.y + Math.sin(angle) * radius;
+        const text = pct.toFixed(0) + '%';
+        ctx.strokeText(text, x, y);
+        ctx.fillText(text, x, y);
+      });
+      ctx.restore();
+    },
+  };
+  new Chart(document.getElementById('globalCat'), {
+    type: 'doughnut',
+    data: { labels: gLabels,
+            datasets: [{
+              data: gValues,
+              backgroundColor: c => radialTint(c.chart.ctx, c.chart.chartArea, bases[c.dataIndex]),
+              borderWidth: 2, borderColor: '#fff',
+              hoverOffset: 12, borderRadius: 6, spacing: 2,
+            }] },
+    options: {
+      cutout: '62%',
+      animation: { animateRotate: true, animateScale: true, duration: 900, easing: 'easeOutQuart' },
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' } },
+        tooltip: { displayColors: false, callbacks: { label: i => {
+          const total = gValues.reduce((a, b) => a + b, 0);
+          const pct = total ? (i.raw / total * 100).toFixed(1) : 0;
+          return ` ${i.label}  ${fmt(i.raw)}  (${pct}%)`;
+        } } },
+      },
+    },
+    plugins: [softShadow, sliceLabels],
+  });
+}
+</script>
+{% endif %}
+{% endblock %}

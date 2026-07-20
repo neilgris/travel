@@ -1,9 +1,9 @@
 import datetime as dt
-import json
 from decimal import Decimal, InvalidOperation
 from flask import (Blueprint, render_template, request, redirect,
                    url_for, flash, current_app, abort)
 from app.extensions import db
+from app.blueprints._json import safe_json
 from app.models.trip import Trip, Leg, TripCurrency
 from app.models.city import City
 from app.models.person import Person
@@ -12,7 +12,7 @@ from app.models.day import (Day, Entry, DayImage, CATEGORIES,
 from app.services.geocoding import geocode
 from app.services.flags import country_name_from_code
 from app.services.exchange import fetch_rate
-from app.services.stats import trip_stats, trips_overview
+from app.services.stats import trip_stats
 from app.services.distance import trip_distance_km
 from app.services.story import story_data
 from app.services.uploads import save_upload, delete_upload
@@ -70,27 +70,7 @@ def _city_groups_for_picker():
 @bp.route("/")
 def list():
     trips = Trip.query.order_by(Trip.start_date.desc()).all()
-    overview = trips_overview(trips)
-    total_distance_km = sum(trip_distance_km(t) for t in trips)
-    # 旅程标题是用户自由文本，进内联 <script> 前统一走 _safe_json 转义（同 stats 页）。
-    chart_trips = [{
-        "id": r["id"],
-        "title": r["title"],
-        "total": float(r["total_cny"]),
-        "start": r["start_date"].isoformat(),
-        "end": r["end_date"].isoformat(),
-        "days": (r["end_date"] - r["start_date"]).days + 1,
-        "by_category": {cat: float(v) for cat, v in r["by_category"].items()},
-    } for r in overview["trips"]]
-    global_cat = {cat: float(v) for cat, v in overview["global_by_category"].items()}
-    return render_template(
-        "trips/list.html",
-        overview=overview,
-        categories=CATEGORIES,
-        total_distance_km=total_distance_km,
-        chart_trips_json=_safe_json(chart_trips),
-        global_cat_json=_safe_json(global_cat),
-    )
+    return render_template("trips/list.html", trips=trips)
 
 
 def _apply_form(trip):
@@ -421,18 +401,11 @@ def reorder_entries(trip_id, day_id):
     return {"ok": True}
 
 
-def _safe_json(obj):
-    # 城市名等是用户自由文本，要进内联 <script>。转义 < > & 防止 </script> 截断/注入，
-    # 同时保留 ensure_ascii=False 让中文可读。数字/固定类别名不受影响。
-    return (json.dumps(obj, ensure_ascii=False)
-            .replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"))
-
-
 @bp.route("/<int:trip_id>/stats")
 def stats_page(trip_id):
     trip = db.get_or_404(Trip, trip_id)
     s = trip_stats(trip)
-    # 下面的数据经 |safe 注入内联 <script>；含用户自由文本（城市名）时一律走 _safe_json 转义。
+    # 下面的数据经 |safe 注入内联 <script>；含用户自由文本（城市名）时一律走 safe_json 转义。
     # Top 10 消费含标题（自由文本），改在模板里用 Jinja 自动转义渲染，不进 JS。
     cat_labels = [k for k, v in s["by_category"].items() if v > 0]
     cat_values = [float(s["by_category"][k]) for k in cat_labels]
@@ -453,16 +426,16 @@ def stats_page(trip_id):
              "date": e["date"].isoformat(), "city": e["city"]}
             for e in items
         ]
-    cat_detail_json = _safe_json(_cat_detail)
+    cat_detail_json = safe_json(_cat_detail)
     return render_template("trips/stats.html", trip=trip, stats=s,
                            distance_km=trip_distance_km(trip),
-                           cat_labels_json=_safe_json(cat_labels),
-                           cat_values_json=_safe_json(cat_values),
-                           day_labels_json=_safe_json(day_labels),
-                           day_values_json=_safe_json(day_values),
-                           cumulative_values_json=_safe_json(cumulative_values),
-                           city_labels_json=_safe_json(city_labels),
-                           city_values_json=_safe_json(city_values),
+                           cat_labels_json=safe_json(cat_labels),
+                           cat_values_json=safe_json(cat_values),
+                           day_labels_json=safe_json(day_labels),
+                           day_values_json=safe_json(day_values),
+                           cumulative_values_json=safe_json(cumulative_values),
+                           city_labels_json=safe_json(city_labels),
+                           city_values_json=safe_json(city_values),
                            cat_detail_json=cat_detail_json,
                            total_cny_float=float(s["total_cny"]))
 

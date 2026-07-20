@@ -1,0 +1,37 @@
+{% macro toplist(card, cat_colors) %}
+{% set top10 = card.top_entries[:10] %}
+{% if top10 %}
+<span class="super-top">
+  <span class="super-top-label">最贵消费 Top {{ top10|length }}</span>
+  <ol class="super-top-grid">
+    {% for e in top10 %}
+    <li class="stt-item">
+      <i style="background: {{ cat_colors.get(e.category, '#b0a99f') }}"></i>
+      <span class="stt-title">{{ e.title }}</span>
+      <span class="stt-amount">￥{{ '{:,.0f}'.format(e.cny) }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+</span>
+{% endif %}
+{% endmacro %}
+
+{% macro comp(card, categories, cat_colors) %}
+<span class="super-comp">
+  <span class="super-comp-label">消费构成</span>
+  {% if card.total_cny > 0 %}
+  <span class="super-comp-bar" aria-hidden="true">
+    {% for cat in categories %}{% if card.by_category[cat] > 0 %}
+    <span style="flex: {{ card.by_category[cat] }}; background: {{ cat_colors.get(cat, '#b0a99f') }}"></span>
+    {% endif %}{% endfor %}
+  </span>
+  <span class="super-comp-legend">
+    {% for cat in categories %}{% if card.by_category[cat] > 0 %}
+    <span class="scl-item"><i style="background: {{ cat_colors.get(cat, '#b0a99f') }}"></i>{{ cat }} {{ (card.by_category[cat] / card.total_cny * 100) | float | round | int }}%</span>
+    {% endif %}{% endfor %}
+  </span>
+  {% else %}
+  <span class="super-comp-empty">暂无消费记录</span>
+  {% endif %}
+</span>
+{% endmacro %}

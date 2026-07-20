@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}{{ r.year }} 年度报告{% endblock %}
+{% block main_class %}story-main{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='story.css') }}">
+{% endblock %}
+{% set cat_colors = {
+  "吃饭": "#e76f51", "游玩": "#2a9d8f", "购物": "#e9c46a",
+  "住宿": "#4a9fc9", "交通": "#9b8cb5", "其他消费": "#b0a99f"} %}
+{% block content %}
+
+{# ---- 第 1 节 年份封面 ---- #}
+<section class="yr-cover">
+  <div class="story-actions">
+    <a class="story-back" href="{{ url_for('insights.overview') }}">← 人生足迹</a>
+  </div>
+  <div class="trip-title-nav">
+    {% if r.prev_year %}
+    <a class="title-nav-arrow" href="{{ url_for('insights.year_report_page', year=r.prev_year) }}"
+       title="{{ r.prev_year }}">‹</a>
+    {% else %}
+    <span class="title-nav-arrow disabled">‹</span>
+    {% endif %}
+    <h1 class="yr-year">{{ r.year }}</h1>
+    {% if r.next_year %}
+    <a class="title-nav-arrow" href="{{ url_for('insights.year_report_page', year=r.next_year) }}"
+       title="{{ r.next_year }}">›</a>
+    {% else %}
+    <span class="title-nav-arrow disabled">›</span>
+    {% endif %}
+  </div>
+  <p class="yr-summary">
+    {{ r.trip_count }} 趟旅程 · {{ r.country_count }} 个国家 ·
+    ￥{{ '{:,.0f}'.format(r.total_cny) }} · {{ r.days_on_road }} 天在途 ·
+    {{ '{:,}'.format(r.distance_km) }} km
+  </p>
+</section>
+
+{# ---- 第 2 节 足迹地图 ---- #}
+<section class="yr-section">
+  <h2 class="yr-h2">这一年，你走过这些地方</h2>
+  {# 地图数据由下方内联脚本直接传给 STORY_MAP.render()，不走 story.html 那种 data-map 属性——
+     story-map.js 的自动初始化只认 #story-map，这里的 #year-map 是自己调 render()。 #}
+  <div id="year-map"></div>
+</section>
+
+{# ---- 第 3 节 新解锁国家（没有就整节跳过）---- #}
+{% if r.new_countries %}
+<section class="yr-section">
+  <h2 class="yr-h2">新解锁 {{ r.new_countries | length }} 个国家</h2>
+  <div class="yr-flags">
+    {% for c in r.new_countries %}
+    <span class="yr-flag-item">
+      <span class="yr-flag">{{ c | country_flag }}</span>
+      <span class="yr-flag-name">{{ c }}</span>
+    </span>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{# ---- 第 4 节 旅程清单 ---- #}
+<section class="yr-section">
+  <h2 class="yr-h2">{{ r.trip_count }} 趟旅程</h2>
+  <div class="yr-trips">
+    {% for t in r.trips %}
+    <a class="card yr-trip" href="{{ url_for('trips.story', trip_id=t.id) }}">
+      <span class="yr-trip-title">{{ t.title or '未命名' }}</span>
+      <span class="yr-trip-meta">{{ t.start_date }} ~ {{ t.end_date }}</span>
+      {% if t.cities %}<span class="yr-trip-cities">{{ t.cities | join(' · ') }}</span>{% endif %}
+      <span class="yr-trip-amount">￥{{ '{:,.0f}'.format(t.total_cny) }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+{# ---- 第 5 节 花费构成 ---- #}
+<section class="yr-section">
+  <h2 class="yr-h2">花了 ￥{{ '{:,.0f}'.format(r.total_cny) }}</h2>
+  {% if r.prev_total_cny is not none and r.prev_total_cny > 0 %}
+  {% set delta = (r.total_cny - r.prev_total_cny) / r.prev_total_cny * 100 %}
+  <p class="yr-delta">
+    比 {{ r.prev_year }} 年{% if delta >= 0 %}多{% else %}少{% endif %}
+    {{ (delta | abs) | round | int }}%（{{ r.prev_year }} 年 ￥{{ '{:,.0f}'.format(r.prev_total_cny) }}）
+  </p>
+  {% endif %}
+  <div class="donut-wrap">
+    <canvas id="yearCat"></canvas>
+    <div class="donut-center">
+      <span class="donut-center-label">总计</span>
+      <span class="donut-center-value">￥{{ '{:,.0f}'.format(r.total_cny) }}</span>
+    </div>
+  </div>
+</section>
+
+{# ---- 第 6 节 年度之最（四项全空就整节跳过）---- #}
+{% set sup = r.superlatives %}
+{% if sup.best_meal or sup.best_stay or sup.biggest_day or sup.farthest_trip %}
+<section class="yr-section">
+  <h2 class="yr-h2">这一年之最</h2>
+  <div class="ms-row">
+    {% if sup.best_meal %}
+    <a class="card ms-card" href="{{ url_for('trips.story', trip_id=sup.best_meal.trip_id) }}">
+      <span class="ms-emoji">🍜</span>
+      <span class="ms-label">最贵的一顿饭</span>
+      <span class="ms-value">{{ sup.best_meal.title }}</span>
+      <span class="ms-sub">￥{{ '{:,.0f}'.format(sup.best_meal.cny) }} ·
+        {{ sup.best_meal.date }} · {{ sup.best_meal.trip_title }}</span>
+    </a>
+    {% endif %}
+    {% if sup.best_stay %}
+    <a class="card ms-card" href="{{ url_for('trips.story', trip_id=sup.best_stay.trip_id) }}">
+      <span class="ms-emoji">🏨</span>
+      <span class="ms-label">最贵的一次住宿</span>
+      <span class="ms-value">{{ sup.best_stay.title }}</span>
+      <span class="ms-sub">￥{{ '{:,.0f}'.format(sup.best_stay.cny) }} ·
+        {{ sup.best_stay.date }} · {{ sup.best_stay.trip_title }}</span>
+    </a>
+    {% endif %}
+    {% if sup.biggest_day %}
+    <a class="card ms-card" href="{{ url_for('trips.story', trip_id=sup.biggest_day.trip_id) }}">
+      <span class="ms-emoji">💳</span>
+      <span class="ms-label">花得最多的一天</span>
+      <span class="ms-value">￥{{ '{:,.0f}'.format(sup.biggest_day.cny) }}</span>
+      <span class="ms-sub">{{ sup.biggest_day.date }}{% if sup.biggest_day.city %} ·
+        {{ sup.biggest_day.city }}{% endif %} · {{ sup.biggest_day.trip_title }}</span>
+    </a>
+    {% endif %}
+    {% if sup.farthest_trip %}
+    <a class="card ms-card" href="{{ url_for('trips.story', trip_id=sup.farthest_trip.trip_id) }}">
+      <span class="ms-emoji">🛫</span>
+      <span class="ms-label">走得最远的一趟</span>
+      <span class="ms-value">{{ '{:,}'.format(sup.farthest_trip.distance_km) }} km</span>
+      <span class="ms-sub">{{ sup.farthest_trip.title }}</span>
+    </a>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/d3.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/topojson-client.min.js') }}"></script>
+<script src="{{ url_for('static', filename='story-map.js') }}"></script>
+<script>
+// 年度足迹图：复用故事页的 2D 小地图渲染器。frameAll 让全部城市参与取景——
+// 默认的裁剪是为单趟旅程调的（甩开出发地与远程中转），年度报告要的是全貌。
+(function () {
+  const el = document.getElementById('year-map');
+  if (!el || !window.STORY_MAP) return;
+  const data = {{ map_json | safe }};
+  // 等容器被 CSS 定尺再渲染（同 story-map.js 的 whenSized 兜底）
+  let tries = 0;
+  (function whenSized() {
+    if (el.clientWidth >= 120 || tries++ > 30) {
+      return window.STORY_MAP.render(el, data, { frameAll: true });
+    }
+    requestAnimationFrame(whenSized);
+  })();
+})();
+
+const CAT_COLORS = {{ cat_colors|tojson }};
+const CATEGORIES = {{ categories|tojson }};
+const yearCat = {{ cat_json | safe }};
+const fmt = v => '￥' + Number(v).toLocaleString('zh-CN',
+  { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const gLabels = CATEGORIES.filter(c => (yearCat[c] || 0) > 0);
+const gValues = gLabels.map(c => yearCat[c]);
+if (gLabels.length) {
+  new Chart(document.getElementById('yearCat'), {
+    type: 'doughnut',
+    data: { labels: gLabels, datasets: [{
+      data: gValues,
+      backgroundColor: gLabels.map(l => CAT_COLORS[l] || '#b0a99f'),
+      borderWidth: 2, borderColor: '#fff', hoverOffset: 12, borderRadius: 6, spacing: 2,
+    }] },
+    options: {
+      cutout: '62%',
+      animation: { animateRotate: true, animateScale: true, duration: 900, easing: 'easeOutQuart' },
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' } },
+        tooltip: { displayColors: false, callbacks: { label: i => {
+          const total = gValues.reduce((a, b) => a + b, 0);
+          const pct = total ? (i.raw / total * 100).toFixed(1) : 0;
+          return ` ${i.label}  ${fmt(i.raw)}  (${pct}%)`;
+        } } },
+      },
+    },
+  });
+}
+</script>
+{% endblock %}

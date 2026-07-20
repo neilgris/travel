@@ -1102,3 +1102,38 @@ canvas { max-width: 100%; }
   position: absolute; z-index: 4; pointer-events: none;
   max-width: 220px;
 }
+
+/* ---- 人生足迹总览：KPI 六列 + 里程碑卡 ---- */
+/* 六列比列表页原来的四列挤得多：历史总花费是七位数（￥1,416,487.19），
+   等分到 165px 的列里会被裁成「￥1,416,487.」。让总花费卡横跨两列；列宽下限
+   相应调小（150→130），否则七个格排不进六列会把最后一张卡挤到第二行；
+   数字字号也收一档（1.7→1.45rem），让总里程「232,891 km」在窄列里放得下。 */
+.kpi-row-6 { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.kpi-row-6 .kpi-value { font-size: 1.45rem; }
+.kpi-row-6 .kpi-money { grid-column: span 2; }
+
+.ms-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px; margin-bottom: 1.2rem;
+}
+.ms-card { display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: inherit; }
+a.ms-card:hover { transform: translateY(-2px); transition: transform .15s; }
+.ms-emoji { font-size: 1.5rem; }
+.ms-label { font-size: .8rem; color: #888; }
+.ms-value { font-size: 1.15rem; font-weight: 600; }
+.ms-sub { font-size: .78rem; color: #999; }
+
+/* ---- 逐年对比图 ---- */
+.year-wrap { height: 320px; position: relative; }
+
+/* ---- 旅程列表（看板搬去 /insights/ 后的纯列表） ---- */
+/* 前缀用 tl-（trip list）而不是 trip-item：.trip-item 已被首页地球侧栏
+   （.trip-item / .ti-dot / .ti-body，见上方「右侧旅程列表」块）占用，
+   同名会覆盖侧栏的 flex-start 对齐等样式，之前踩过一次坑。 */
+.trip-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.tl-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.tl-main { display: flex; flex-direction: column; gap: 3px; text-decoration: none; color: inherit; flex: 1; }
+.tl-title { font-size: 1.05rem; font-weight: 600; }
+.tl-meta { font-size: .82rem; color: #999; }
+.tl-story { font-size: .85rem; color: #4a9fc9; text-decoration: none; white-space: nowrap; }
+.tl-story:hover { text-decoration: underline; }
