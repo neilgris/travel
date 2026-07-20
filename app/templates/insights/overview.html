@@ -178,13 +178,17 @@ function radialTint(ctx, area, base) {
   g.addColorStop(1, base);
   return g;
 }
+// shadowBlur 是 canvas 里出了名的慢路径；对比图动画期间每帧都套阴影实测占单帧
+// 耗时的 37%（2.43ms → 1.54ms）。chart.$shadowEnabled === false 时跳过，
+// 供大图在动画播放期间临时关闭，动画结束后再补一帧带阴影的静态重绘。
 const softShadow = {
   id: 'softShadow',
   beforeDatasetsDraw(c) {
+    if (c.$shadowEnabled === false) return;
     const x = c.ctx; x.save();
     x.shadowColor = 'rgba(0,0,0,0.16)'; x.shadowBlur = 14; x.shadowOffsetY = 5;
   },
-  afterDatasetsDraw(c) { c.ctx.restore(); },
+  afterDatasetsDraw(c) { if (c.$shadowEnabled !== false) c.ctx.restore(); },
 };
 
 // ---- 各旅程花费对比：横向堆叠柱（一根柱=一趟，分段=类别）----
@@ -240,10 +244,12 @@ const labelEls = trips.map(t => {
   labelOverlay.appendChild(a);
   return a;
 });
-// 每次渲染后把 HTML 标签对齐到各自柱子的中心
+// 把 HTML 标签对齐到各自柱子的中心：横向柱状图动画只变宽度，bar.y 在整个动画期间
+// 不变，afterRender 每帧都调用（800ms 动画约 48 次）纯属浪费；afterUpdate 每次 update()
+// 只跑一次（含初始渲染、resize），y 值同样准确。
 const overlayLabels = {
   id: 'overlayLabels',
-  afterRender(chart) {
+  afterUpdate(chart) {
     const meta = chart.getDatasetMeta(0);
     labelEls.forEach((el, i) => {
       const bar = meta.data[i];
@@ -254,14 +260,17 @@ const overlayLabels = {
   },
 };
 
-new Chart(document.getElementById('compareChart'), {
+// 这张图画布随旅程数线性变高（38 趟 ≈ 2000px，dpr=2 后近千万像素），入场动画
+// 若跟逐年图/环图同时在首屏播放会抢帧，把逐年图的动画也拖卡（实测无关但同屏抢主线程）。
+// 改为首屏瞬间画好（不播入场动画），滚入可视区域后再补播一次，此时早已不跟别的图抢首帧。
+const compareChart = new Chart(document.getElementById('compareChart'), {
   type: 'bar',
   data: { labels, datasets },
   options: {
     indexAxis: 'y',
     maintainAspectRatio: false,
     layout: { padding: { right: 96 } },   // 给柱尾总额留白
-    animation: { duration: 800, easing: 'easeOutQuart' },
+    animation: false,
     // hover 切换分类时元素高亮的过渡动画也会多帧重绘超高画布，一并瞬时化。
     // （真正的卡顿主因是 tooltip 跟随动画，已在全局 Chart.defaults 里关掉。）
     transitions: { active: { animation: { duration: 0 } } },
@@ -293,6 +302,20 @@ new Chart(document.getElementById('compareChart'), {
   },
   plugins: [softShadow, totalLabels, overlayLabels],
 });
+
+// 滚入视口时补播一次入场动画；动画期间临时关掉阴影（省单帧 ~37% 耗时，见 softShadow 注释），
+// 播完再瞬时补一帧带阴影的静态重绘。
+new IntersectionObserver((entries, obs) => {
+  if (!entries[0].isIntersecting) return;
+  obs.disconnect();
+  compareChart.$shadowEnabled = false;
+  compareChart.options.animation = {
+    duration: 800, easing: 'easeOutQuart',
+    onComplete() { compareChart.$shadowEnabled = true; compareChart.update('none'); },
+  };
+  compareChart.reset();
+  compareChart.update();
+}, { threshold: 0.15 }).observe(document.querySelector('.compare-wrap'));
 
 // ---- 逐年对比：柱高=当年总花费，点击进年度报告，最忙那年描边高亮 ----
 if (years.length) {
