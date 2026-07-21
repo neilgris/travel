@@ -3,7 +3,9 @@ def register_blueprints(app):
     from .trips import bp as trips_bp
     from .settings import bp as settings_bp
     from .insights import bp as insights_bp
+    from .expenses import bp as expenses_bp
     app.register_blueprint(main_bp)
     app.register_blueprint(trips_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(insights_bp)
+    app.register_blueprint(expenses_bp)

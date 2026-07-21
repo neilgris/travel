@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}日常消费 · 流水{% endblock %}
+{% block content %}
+<div class="list-head">
+  <h1>日常消费</h1>
+  <a class="btn" href="{{ url_for('expenses.create') }}">+ 记一笔</a>
+</div>
+
+<form class="card exp-filter" id="exp-filter-form">
+  <div class="form-row">
+    <div class="field">
+      <label>年份</label>
+      <select name="year" id="exp-year">
+        <option value="">全部</option>
+        {% for y in years %}
+        <option value="{{ y }}" {% if filters.year == y %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>收支</label>
+      <select name="kind">
+        <option value="">全部</option>
+        {% for k in kinds %}<option value="{{ k }}" {% if filters.kind == k %}selected{% endif %}>{{ k }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>分类</label>
+      <div class="msel" data-label="分类">
+        <button type="button" class="msel-toggle">分类</button>
+        <div class="msel-panel">
+          {% for top in categories %}
+          <label class="msel-opt"><input type="checkbox" name="category_id" value="{{ top.id }}" {% if top.id in filters.category_id %}checked{% endif %}> {{ top.icon or '' }} {{ top.name }}</label>
+          {% for sub in top.children %}
+          <label class="msel-opt msel-sub"><input type="checkbox" name="category_id" value="{{ sub.id }}" {% if sub.id in filters.category_id %}checked{% endif %}> {{ sub.icon or '' }} {{ sub.name }}</label>
+          {% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label>标签</label>
+      <div class="msel" data-label="标签">
+        <button type="button" class="msel-toggle">标签</button>
+        <div class="msel-panel">
+          {% for t in tags %}
+          <label class="msel-opt"><input type="checkbox" name="tag_id" value="{{ t.id }}" {% if t.id in filters.tag_id %}checked{% endif %}> {{ t.name }}</label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="field field-grow">
+      <label>备注关键词</label>
+      <input type="text" name="q" value="{{ filters.q or '' }}" placeholder="如：山姆">
+    </div>
+  </div>
+</form>
+
+<div id="exp-results">
+{% include "expenses/_list_results.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='expenses-list.js') }}"></script>
+{% endblock %}

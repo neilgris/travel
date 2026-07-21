@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}分类与标签{% endblock %}
+{% block content %}
+<h1>分类与标签</h1>
+
+<h3 class="city-group">新增分类</h3>
+<form method="post" class="card create-row">
+  <div class="field"><label>收支</label>
+    <select name="kind" id="new-cat-kind">{% for k in ["支出", "收入"] %}<option value="{{ k }}">{{ k }}</option>{% endfor %}</select>
+  </div>
+  <div class="field exp-parent-field"><label>挂在哪个一级分类下（留空=新建一级）</label>
+    <select name="parent_id" id="new-cat-parent">
+      <option value="">— 新建一级分类 —</option>
+      {% for top in categories %}
+      <option value="{{ top.id }}" data-kind="{{ top.kind }}">{{ top.icon or '' }} {{ top.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field exp-name-field"><label>名称</label><input name="name" required></div>
+  <div class="field exp-icon-field"><label>图标</label><input name="icon" maxlength="8" placeholder="emoji"></div>
+  <button class="btn" type="submit">添加</button>
+</form>
+
+{% for kind in ["支出", "收入"] %}
+{% set tops = categories | selectattr("kind", "equalto", kind) | list %}
+<h3 class="city-group">{{ kind }}分类</h3>
+{% for top in tops %}
+<div class="card settings-row city-row">
+  <form method="post" action="{{ url_for('expenses.edit_category', cat_id=top.id) }}" class="inline-edit exp-cat-edit">
+    <input name="icon" value="{{ top.icon or '' }}" maxlength="8" placeholder="emoji">
+    <input name="name" value="{{ top.name }}" required>
+    <button class="btn btn-sm" type="submit">保存</button>
+  </form>
+  <form method="post" action="{{ url_for('expenses.delete_category', cat_id=top.id) }}"
+        onsubmit="return confirm('确定删除 {{ top.name }}？');">
+    <button class="btn btn-danger btn-sm" type="submit">删除</button>
+  </form>
+</div>
+{% if top.children %}
+<div class="city-group-grid">
+  {% for sub in top.children %}
+  <div class="card settings-row city-row">
+    <form method="post" action="{{ url_for('expenses.edit_category', cat_id=sub.id) }}" class="inline-edit exp-cat-edit">
+      <span class="muted">　└</span>
+      <input name="icon" value="{{ sub.icon or '' }}" maxlength="8" placeholder="emoji">
+      <input name="name" value="{{ sub.name }}" required>
+      <button class="btn btn-sm" type="submit">保存</button>
+    </form>
+    <form method="post" action="{{ url_for('expenses.delete_category', cat_id=sub.id) }}"
+          onsubmit="return confirm('确定删除 {{ sub.name }}？');">
+      <button class="btn btn-danger btn-sm" type="submit">删除</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+{% endfor %}
+
+<h3 class="city-group">标签</h3>
+<div class="city-group-grid">
+{% for t in tags %}
+<div class="card settings-row city-row">
+  <span class="exp-tag">#{{ t.name }}</span>
+  <form method="post" action="{{ url_for('expenses.delete_tag', tag_id=t.id) }}"
+        onsubmit="return confirm('确定删除标签 {{ t.name }}？');">
+    <button class="btn btn-danger btn-sm" type="submit">删除</button>
+  </form>
+</div>
+{% else %}
+<p class="muted">还没有标签，记录时或导入时会自动创建。</p>
+{% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const kindSelect = document.getElementById('new-cat-kind');
+const parentSelect = document.getElementById('new-cat-parent');
+const parentOptions = Array.from(parentSelect.options).slice(1);
+
+function filterParentOptions() {
+  const kind = kindSelect.value;
+  parentOptions.forEach(function (opt) {
+    opt.hidden = opt.dataset.kind !== kind;
+  });
+  if (parentSelect.selectedOptions[0] && parentSelect.selectedOptions[0].hidden) {
+    parentSelect.value = '';
+  }
+}
+
+kindSelect.addEventListener('change', filterParentOptions);
+filterParentOptions();
+</script>
+{% endblock %}
