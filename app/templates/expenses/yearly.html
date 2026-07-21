@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ year }} 年度分析{% endblock %}
+{% block content %}
+<div class="trip-title-nav">
+  <a class="title-nav-arrow" href="{{ url_for('expenses.yearly', year=year - 1) }}">←</a>
+  <h1>{{ year }} 年度</h1>
+  <a class="title-nav-arrow" href="{{ url_for('expenses.yearly', year=year + 1) }}">→</a>
+</div>
+
+<div class="kpi-row">
+  <div class="card kpi kpi-money">
+    <span class="kpi-label">全年支出</span>
+    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.total_expense) }}</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">全年收入</span>
+    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.total_income) }}</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">结余</span>
+    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.balance) }}</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">月均支出</span>
+    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.avg_month_expense) }}</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">日均支出</span>
+    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.avg_day_expense) }}</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">有支出天数</span>
+    <span class="kpi-value">{{ s.days_with_expense }}</span>
+  </div>
+</div>
+
+{% if s.max_single %}
+<div class="card ms-card" style="max-width: 320px">
+  <span class="ms-emoji">💸</span>
+  <span class="ms-label">最大单笔支出</span>
+  <span class="ms-value">￥{{ '{:,.2f}'.format(s.max_single.amount) }}</span>
+  <span class="ms-sub">{{ s.max_single.date.isoformat() }} · {{ s.max_single.category.name }}{% if s.max_single.note %} · {{ s.max_single.note }}{% endif %}</span>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>12 个月趋势</h3>
+  <canvas id="monthlyLine" height="80"></canvas>
+</div>
+
+<div class="overview-grid">
+  <div class="card">
+    <h3>一级分类排行</h3>
+    {% if s.category_rank %}
+    <table>
+      <tbody>
+      {% for c in s.category_rank %}
+      <tr>
+        <td>{{ c.icon or '' }} {{ c.category }}</td>
+        <td style="text-align:right">￥{{ '{:,.2f}'.format(c.total) }}</td>
+        <td class="muted" style="text-align:right; white-space:nowrap">
+          {% if c.yoy.pct is not none %}同比{{ '{:+.1f}'.format(c.yoy.pct) }}%{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">今年还没有支出记录。</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3>二级分类 Top 10</h3>
+    {% if s.subcategory_top %}
+    <table>
+      <tbody>
+      {% for c in s.subcategory_top %}
+      <tr><td>{{ c.parent }} · {{ c.category }}</td><td style="text-align:right">￥{{ '{:,.2f}'.format(c.total) }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">暂无数据。</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h3>标签榜</h3>
+  {% if s.tag_rank %}
+  <table>
+    <tbody>
+    {% for t in s.tag_rank %}
+    <tr><td>{{ t.tag }}</td><td class="muted">{{ t.count }} 笔</td><td style="text-align:right">￥{{ '{:,.2f}'.format(t.total) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">今年记录都没打标签。</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const monthly = {{ monthly_json | safe }};
+Chart.defaults.font.family = "system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif";
+new Chart(document.getElementById('monthlyLine'), {
+  type: 'line',
+  data: {
+    labels: monthly.map(m => m.month + '月'),
+    datasets: [
+      { label: '支出', data: monthly.map(m => m.expense), borderColor: '#e76f51', backgroundColor: 'rgba(231,111,81,0.12)', tension: 0.3, fill: true },
+      { label: '收入', data: monthly.map(m => m.income), borderColor: '#2a9d8f', backgroundColor: 'rgba(42,157,143,0.1)', tension: 0.3, fill: true },
+    ],
+  },
+  options: { plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } },
+});
+</script>
+{% endblock %}

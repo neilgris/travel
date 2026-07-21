@@ -1,0 +1,48 @@
+{% macro exp_item(r, show_date=True) %}
+<li class="card tl-item exp-item">
+  <a class="tl-main" href="{{ url_for('expenses.edit', record_id=r.id) }}">
+    <span class="tl-title">
+      {{ r.category.display_icon or '' }} {{ r.category.name }}
+      {% if r.tag %}<span class="exp-tag">#{{ r.tag.name }}</span>{% endif %}
+      {% if r.note %}<span class="muted">{{ r.note }}</span>{% endif %}
+    </span>
+    <span class="tl-meta">
+      {% if show_date %}{{ r.date.isoformat() }} · {% endif %}
+      <span class="{{ 'exp-amount-income' if r.kind == '收入' else 'exp-amount-expense' }}">
+        {{ '+' if r.kind == '收入' else '−' }}￥{{ '{:,.2f}'.format(r.amount) }}
+      </span>
+    </span>
+  </a>
+  <form method="post" action="{{ url_for('expenses.delete', record_id=r.id) }}"
+        onsubmit="return confirm('删除这条记录？')">
+    <button class="link-danger exp-del" type="submit">删除</button>
+  </form>
+</li>
+{% endmacro %}
+{% macro group_days(g) %}
+{% for day in g.days %}
+<div class="exp-day">
+  <h3 class="exp-day-head">{{ day.date.isoformat() }} <span>支出 ￥{{ '{:,.2f}'.format(day.subtotal) }}</span></h3>
+  <ul class="trip-list exp-list exp-list-compact">
+    {% for r in day.records %}{{ exp_item(r, show_date=False) }}{% endfor %}
+  </ul>
+</div>
+{% endfor %}
+{% endmacro %}
+{% if groups %}
+{% for g in groups %}
+<details class="tl-group" {% if loop.first %}open{% endif %}>
+<summary class="tl-year">{{ g.label }} <span>支出 ￥{{ '{:,.2f}'.format(g.subtotal) }}</span></summary>
+{% if loop.first %}
+{{ group_days(g) }}
+{% else %}
+{# 折叠的月份先用 <template> 占位——浏览器只解析不布局，展开时才由 JS 克隆进真实
+   DOM。不这样做的话，切到全年这种大月份集合时，一次性把全部月份都布局出来，
+   主线程会卡住一阵子，点哪儿都没反应。 #}
+<template class="tl-group-tpl">{{ group_days(g) }}</template>
+{% endif %}
+</details>
+{% endfor %}
+{% else %}
+<p class="muted">没有符合条件的记录。</p>
+{% endif %}

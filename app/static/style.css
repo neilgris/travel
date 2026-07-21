@@ -41,13 +41,19 @@ body {
   padding: 0.6rem 1.4rem;
   border-bottom: 1px solid var(--border);
 }
+.topnav .brand-group { display: flex; gap: 0.3rem; }
 .topnav .brand {
   font-weight: 700;
-  font-size: 1.05rem;
-  color: var(--primary);
+  font-size: 0.95rem;
+  color: var(--muted);
   text-decoration: none;
   letter-spacing: 0.3px;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  transition: background 0.15s, color 0.15s;
 }
+.topnav .brand:hover { color: var(--primary); }
+.topnav .brand.active { color: var(--primary); background: var(--ring); }
 .topnav .navlinks { display: flex; gap: 0.3rem; margin-left: auto; }
 .topnav .navlinks a {
   color: var(--text);
@@ -1139,6 +1145,19 @@ a.ms-card:hover { transform: translateY(-2px); transition: transform .15s; }
 }
 .tl-year span { font-weight: 400; font-size: .8rem; color: var(--muted); margin-left: .4rem; }
 
+/* 日常消费·流水：月份分组用 <details>/<summary> 原生折叠，默认只有最新月展开；
+   .tl-year 在旅程列表页是普通 <h2>，这里加的折叠箭头/指针样式只认 .tl-group 里的 summary，
+   不会影响旅程列表那边。 */
+.tl-group > summary.tl-year {
+  display: block; cursor: pointer;
+}
+.tl-group > summary.tl-year::-webkit-details-marker { display: none; }
+.tl-group > summary.tl-year::before {
+  content: '▸'; display: inline-block; margin-right: .4rem;
+  font-size: .8em; color: var(--muted); transition: transform .15s; transform-origin: 45% 50%;
+}
+.tl-group[open] > summary.tl-year::before { transform: rotate(90deg); }
+
 /* 双列 + 单行卡片：窄屏自动退回单列 */
 .trip-list {
   list-style: none; padding: 0; margin: 0;
@@ -1159,3 +1178,79 @@ a.ms-card:hover { transform: translateY(-2px); transition: transform .15s; }
 }
 .tl-story { font-size: .95rem; text-decoration: none; opacity: .45; }
 .tl-item:hover .tl-story { opacity: 1; }
+
+/* ---- 日常消费：筛选栏 / 流水列表 / 金额着色 ---- */
+.exp-filter .form-row { align-items: flex-end; }
+.exp-filter { margin-bottom: 1rem; }
+
+/* 分类/标签多选下拉：按钮长得像 select，面板绝对定位悬浮在下方；
+   面板展开时可能盖住下面别的输入框，垫一层透明背板兜住外部点击——
+   点哪儿都先关掉面板，不会出现「点了却没反应」或误点到被盖住的控件。 */
+.msel-backdrop { position: fixed; inset: 0; z-index: 9; display: none; }
+.msel-backdrop.show { display: block; }
+.msel { position: relative; }
+.msel-toggle {
+  width: 100%; text-align: left; cursor: pointer;
+  font: inherit; font-size: .9rem; color: var(--text);
+  padding: 0.45rem 1.9rem 0.45rem 0.6rem;
+  background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8a83' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>") no-repeat right 0.6rem center;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.msel-toggle:hover, .msel.open .msel-toggle { border-color: var(--primary); }
+.msel-panel {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 10;
+  min-width: 11rem; max-height: 15rem; overflow-y: auto;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow); padding: .3rem;
+}
+.msel.open .msel-panel { display: block; }
+.msel-opt {
+  display: flex; align-items: center; gap: .4rem; margin: 0;
+  padding: .3rem .4rem; font-weight: 400; font-size: .85rem;
+  border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap;
+}
+.msel-opt:hover { background: var(--bg); }
+.msel-opt input { width: auto; margin: 0; }
+.msel-sub { padding-left: 1.4rem; }
+
+.exp-list { grid-template-columns: 1fr; }
+.exp-item .tl-title { white-space: normal; font-weight: 500; display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.exp-item .tl-meta { flex: 0 0 auto; white-space: nowrap; overflow: visible; }
+.exp-tag {
+  font-size: .74rem; color: var(--primary); background: var(--ring);
+  border-radius: 999px; padding: .05rem .5rem;
+}
+.exp-amount-expense { color: var(--accent-dark); font-weight: 600; }
+.exp-amount-income { color: var(--primary-dark); font-weight: 600; }
+.exp-del {
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-size: .78rem; color: var(--muted); text-decoration: underline;
+  opacity: .5; transition: opacity .15s, color .15s;
+}
+.exp-item:hover .exp-del { opacity: 1; }
+.exp-del:hover { color: var(--accent-dark); }
+
+/* 按日再分组：标题吸顶（贴在月标题下方）、行距压到最窄，
+   日与日、月与月之间的间隔靠 .exp-day 的外边距保留，不放进 gap 里。 */
+.exp-day { margin: 0 0 .6rem; }
+.exp-day-head {
+  position: sticky; top: 87px; z-index: 1;
+  margin: 0 0 .2rem; padding: .2rem .1rem;
+  font-size: .76rem; font-weight: 600; color: var(--muted);
+  background: var(--bg, #fff);
+}
+.exp-day-head span { font-weight: 400; margin-left: .4rem; }
+.exp-list-compact { gap: 1px; }
+.exp-list-compact .tl-item { padding: .22rem .6rem; }
+.exp-list-compact .tl-title { font-size: .85rem; }
+.exp-list-compact .tl-meta { font-size: .74rem; }
+
+/* ---- 分类管理：图标框收窄，名称框吃满剩余空间 ----
+   用独立类名 exp-cat-edit（而不是复用 .inline-edit）避免和设置页
+   .inline-edit input[name="name"] 等城市/同行人专用的宽度规则打架。 */
+.field.exp-icon-field { flex: 0 0 3.6rem; min-width: 0; text-align: center; }
+.field.exp-name-field { flex: 3 1 auto; min-width: 0; }
+.field.exp-parent-field { flex: 2 1 12rem; min-width: 0; }
+.exp-cat-edit input[name="icon"] { flex: 0 0 3.6rem; min-width: 0; text-align: center; }
+.exp-cat-edit input[name="name"] { flex: 1 1 auto; min-width: 8rem; font-weight: 600; }
