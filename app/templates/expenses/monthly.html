@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ s.year }}-{{ '%02d' % s.month }} 月度概览{% endblock %}
 {% block content %}
+{% set palette = ['#e76f51','#2a9d8f','#e9c46a','#4a9fc9','#9b8cb5','#b0a99f','#f4a261','#606c38'] %}
 <div class="trip-title-nav">
   <a class="title-nav-arrow" href="{{ url_for('expenses.monthly', ym=prev_ym) }}">←</a>
   <h1>{{ s.year }} 年 {{ s.month }} 月</h1>
@@ -25,10 +26,14 @@
     <span class="kpi-label">结余</span>
     <span class="kpi-value">￥{{ '{:,.2f}'.format(s.balance) }}</span>
   </div>
+  <div class="card kpi">
+    <span class="kpi-label">日均支出</span>
+    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.total_expense / (s.daily|length)) }}</span>
+  </div>
 </div>
 
 {% if s.by_category %}
-<div class="overview-grid">
+<div class="cat-split">
   <div class="card">
     <h3>分类占比</h3>
     <div class="donut-wrap">
@@ -40,28 +45,50 @@
     </div>
   </div>
   <div class="card">
-    <h3>每日支出</h3>
-    <canvas id="dailyBar" height="90"></canvas>
+    <h3>分类明细</h3>
+    <ol class="top-list">
+      {% for c in s.by_category %}
+      {% set color = palette[loop.index0 % 8] %}
+      <li class="top-item">
+        <span class="top-bar" style="background: {{ color }}"></span>
+        <span class="top-main">
+          <span class="top-title">{{ c.icon or '' }} {{ c.category }}</span>
+          <span class="top-meta">占 {{ '{:.1f}'.format(c.pct) }}%</span>
+          <span class="mini-bar"><i style="width: {{ c.pct if c.pct <= 100 else 100 }}%; background: {{ color }}"></i></span>
+        </span>
+        <span class="top-amount">￥{{ '{:,.2f}'.format(c.total) }}</span>
+      </li>
+      {% endfor %}
+    </ol>
   </div>
+</div>
+
+<div class="card">
+  <h3>每日支出</h3>
+  <canvas id="dailyBar" height="80"></canvas>
+</div>
+{% else %}
+<div class="card">
+  <p class="muted">本月还没有消费记录。</p>
 </div>
 {% endif %}
 
-<div class="overview-grid">
+<div class="overview-2col">
   <div class="card">
     <h3>Top 10 单笔支出</h3>
     {% if s.top_records %}
-    <table>
-      <tbody>
+    <ol class="top-list">
       {% for r in s.top_records %}
-      <tr>
-        <td>{{ r.date.isoformat() }}</td>
-        <td>{{ r.category.display_icon or '' }} {{ r.category.name }}{% if r.tag %} · #{{ r.tag.name }}{% endif %}</td>
-        <td class="muted">{{ r.note or '' }}</td>
-        <td style="text-align:right">￥{{ '{:,.2f}'.format(r.amount) }}</td>
-      </tr>
+      <li class="top-item">
+        <span class="top-bar" style="background: #e76f51"></span>
+        <span class="top-main">
+          <span class="top-title">{{ r.category.display_icon or '' }} {{ r.note or r.category.name }}</span>
+          <span class="top-meta">{{ r.date.isoformat() }} · {{ r.category.name }}{% if r.tag %} · #{{ r.tag.name }}{% endif %}</span>
+        </span>
+        <span class="top-amount">￥{{ '{:,.2f}'.format(r.amount) }}</span>
+      </li>
       {% endfor %}
-      </tbody>
-    </table>
+    </ol>
     {% else %}
     <p class="muted">本月还没有支出记录。</p>
     {% endif %}
@@ -69,13 +96,19 @@
   <div class="card">
     <h3>标签榜</h3>
     {% if s.tag_top %}
-    <table>
-      <tbody>
+    {% set tag_max = s.tag_top[0].total %}
+    <ol class="top-list">
       {% for t in s.tag_top %}
-      <tr><td>{{ t.tag }}</td><td style="text-align:right">￥{{ '{:,.2f}'.format(t.total) }}</td></tr>
+      <li class="top-item">
+        <span class="top-bar" style="background: #4a9fc9"></span>
+        <span class="top-main">
+          <span class="top-title">#{{ t.tag }}</span>
+          <span class="mini-bar"><i style="width: {{ (t.total / tag_max * 100) if tag_max else 0 }}%; background: #4a9fc9"></i></span>
+        </span>
+        <span class="top-amount">￥{{ '{:,.2f}'.format(t.total) }}</span>
+      </li>
       {% endfor %}
-      </tbody>
-    </table>
+    </ol>
     {% else %}
     <p class="muted">本月记录都没打标签。</p>
     {% endif %}
@@ -88,16 +121,33 @@
 <script>
 const catData = {{ cat_json | safe }};
 const dailyData = {{ daily_json | safe }};
+const palette = ['#e76f51','#2a9d8f','#e9c46a','#4a9fc9','#9b8cb5','#b0a99f','#f4a261','#606c38'];
 Chart.defaults.font.family = "system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif";
+const fmt = v => '￥' + v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const curMonth = {{ s.month }};
 
 new Chart(document.getElementById('catDonut'), {
   type: 'doughnut',
   data: {
     labels: catData.map(c => c.category),
-    datasets: [{ data: catData.map(c => c.total),
-      backgroundColor: ['#e76f51','#2a9d8f','#e9c46a','#4a9fc9','#9b8cb5','#b0a99f','#f4a261','#606c38'] }],
+    datasets: [{
+      data: catData.map(c => c.total),
+      backgroundColor: catData.map((c, i) => palette[i % palette.length]),
+      borderWidth: 2, borderColor: '#fff', hoverOffset: 10,
+    }],
   },
-  options: { plugins: { legend: { position: 'bottom' } }, cutout: '65%' },
+  options: {
+    maintainAspectRatio: false,
+    cutout: '64%',
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: i => {
+        const total = catData.reduce((a, c) => a + c.total, 0);
+        const pct = total ? (i.raw / total * 100).toFixed(1) : 0;
+        return ` ${i.label}  ${fmt(i.raw)}  (${pct}%)`;
+      } } },
+    },
+  },
 });
 
 new Chart(document.getElementById('dailyBar'), {
@@ -106,7 +156,19 @@ new Chart(document.getElementById('dailyBar'), {
     labels: dailyData.map(d => d.date.slice(-2)),
     datasets: [{ data: dailyData.map(d => d.total), backgroundColor: '#2a9d8f', borderRadius: 3 }],
   },
-  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+  options: {
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: {
+        title: items => `${curMonth}月${items[0].label}日`,
+        label: i => fmt(i.raw),
+      } },
+    },
+    scales: {
+      x: { grid: { display: false } },
+      y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('zh-CN') } },
+    },
+  },
 });
 </script>
 {% endif %}

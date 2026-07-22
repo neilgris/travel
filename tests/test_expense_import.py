@@ -42,6 +42,29 @@ def test_import_rows_creates_categories_and_tags(app):
         assert record.source == "import"
 
 
+def test_import_rows_assigns_known_icon_to_new_categories(app):
+    with app.app_context():
+        content = make_expense_xls_bytes(expense_rows=[
+            {"date": "2025-12-31 15:51:51", "cat1": "买买买买", "cat2": "超市市场",
+             "amount": 200.7, "merchant": "超市", "note": "山姆"},
+        ])
+        import_rows(parse_rows(io.BytesIO(content)))
+        record = ExpenseRecord.query.one()
+        assert record.category.icon == "🛒"
+        assert record.category.parent.icon == "🛍️"
+
+
+def test_import_rows_leaves_icon_none_for_unknown_category_name(app):
+    with app.app_context():
+        content = make_expense_xls_bytes(expense_rows=[
+            {"date": "2025-12-31 15:51:51", "cat1": "临时测试分类", "cat2": "",
+             "amount": 10.0, "merchant": "", "note": ""},
+        ])
+        import_rows(parse_rows(io.BytesIO(content)))
+        record = ExpenseRecord.query.one()
+        assert record.category.icon is None
+
+
 def test_import_rows_without_merchant_leaves_tag_null(app):
     with app.app_context():
         content = make_expense_xls_bytes(expense_rows=[

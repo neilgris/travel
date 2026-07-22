@@ -97,6 +97,21 @@ def test_monthly_and_yearly_pages_load(client, app):
     assert client.get("/expenses/yearly?year=2025").status_code == 200
 
 
+def test_overview_page_loads_with_and_without_data(client, app):
+    # 空库也不能报错
+    assert client.get("/expenses/overview").status_code == 200
+    _, lunch_id = _seed_categories(app)
+    with app.app_context():
+        db.session.add(ExpenseRecord(kind="支出", date=dt.date(2023, 6, 1), category_id=lunch_id,
+                                     amount=Decimal("10.00"), source="manual"))
+        db.session.add(ExpenseRecord(kind="支出", date=dt.date(2024, 6, 1), category_id=lunch_id,
+                                     amount=Decimal("20.00"), source="manual"))
+        db.session.commit()
+    resp = client.get("/expenses/overview")
+    assert resp.status_code == 200
+    assert "整体统计" in resp.get_data(as_text=True)
+
+
 def test_import_route_creates_records(client, app):
     content = make_expense_xls_bytes(expense_rows=[
         {"date": "2025-12-31 15:51:51", "cat1": "买买买买", "cat2": "超市市场",
@@ -108,6 +123,38 @@ def test_import_route_creates_records(client, app):
     assert resp.status_code == 200
     with app.app_context():
         assert ExpenseRecord.query.count() == 1
+
+
+def test_create_category_without_icon_autofills_known_name(client, app):
+    # "人情往来" 在 CATEGORY_ICONS 里有已知图标，但不在默认 seed 列表里，
+    # 确保测的是「新建时自动补图标」而非撞见 seed 数据。
+    resp = client.post("/expenses/categories", data={
+        "name": "人情往来", "kind": "支出", "parent_id": "",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        cat = ExpenseCategory.query.filter_by(name="人情往来", parent_id=None).one()
+        assert cat.icon == "🧧"
+
+
+def test_create_category_without_icon_stays_none_for_unknown_name(client, app):
+    resp = client.post("/expenses/categories", data={
+        "name": "全新自定义分类", "kind": "支出", "parent_id": "",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        cat = ExpenseCategory.query.filter_by(name="全新自定义分类", parent_id=None).one()
+        assert cat.icon is None
+
+
+def test_create_category_explicit_icon_not_overridden(client, app):
+    resp = client.post("/expenses/categories", data={
+        "name": "买买买买改", "kind": "支出", "parent_id": "", "icon": "🎯",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        cat = ExpenseCategory.query.filter_by(name="买买买买改", parent_id=None).one()
+        assert cat.icon == "🎯"
 
 
 def test_category_delete_blocked_when_in_use(client, app):

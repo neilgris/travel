@@ -9,9 +9,10 @@ from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.blueprints._json import safe_json
-from app.models.expense import ExpenseCategory, ExpenseTag, ExpenseRecord, EXPENSE_KINDS, seed_default_categories
+from app.models.expense import (ExpenseCategory, ExpenseTag, ExpenseRecord, EXPENSE_KINDS,
+                                seed_default_categories, guess_icon)
 from app.services.expense_import import parse_rows, import_rows
-from app.services.expense_stats import monthly_stats, yearly_stats
+from app.services.expense_stats import monthly_stats, yearly_stats, overview_stats
 
 bp = Blueprint("expenses", __name__, url_prefix="/expenses")
 
@@ -204,9 +205,28 @@ def monthly():
 def yearly():
     year = request.args.get("year", type=int) or dt.date.today().year
     s = yearly_stats(year)
-    return render_template("expenses/yearly.html", s=s, year=year,
+    cur_month = dt.date.today().month if year == dt.date.today().year else 12
+    return render_template("expenses/yearly.html", s=s, year=year, cur_month=cur_month,
                            monthly_json=safe_json([{"month": m["month"], "expense": float(m["expense"]),
-                                                    "income": float(m["income"])} for m in s["monthly"]]))
+                                                    "income": float(m["income"])} for m in s["monthly"]]),
+                           cat_json=safe_json([{"category": c["category"], "total": float(c["total"])}
+                                               for c in s["category_rank"]]))
+
+
+@bp.route("/overview")
+def overview():
+    s = overview_stats()
+    yearly_json = safe_json([{"year": r["year"], "expense": float(r["expense"]),
+                              "income": float(r["income"])} for r in s["yearly"]])
+    stacked_json = safe_json({
+        "years": s["years"],
+        "series": [{"category": name, "data": [float(v) for v in s["cat_year_matrix"][name]]}
+                   for name in s["stack_cats"]],
+    })
+    cat_json = safe_json([{"category": c["category"], "total": float(c["total"])}
+                          for c in s["category_rank"]])
+    return render_template("expenses/overview.html", s=s,
+                           yearly_json=yearly_json, stacked_json=stacked_json, cat_json=cat_json)
 
 
 @bp.route("/import", methods=["GET", "POST"])
@@ -242,8 +262,9 @@ def categories():
         if exists:
             flash("同级下已有同名分类")
             return redirect(url_for("expenses.categories"))
+        icon = request.form.get("icon") or guess_icon(name)
         db.session.add(ExpenseCategory(name=name, kind=kind, parent_id=parent.id if parent else None,
-                                       icon=(request.form.get("icon") or None)))
+                                       icon=icon))
         db.session.commit()
         flash("已添加分类")
         return redirect(url_for("expenses.categories"))
