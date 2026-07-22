@@ -1,7 +1,8 @@
 {% extends "base.html" %}
+{% import "expenses/_stats_macros.html" as st %}
 {% block title %}{{ s.year }}-{{ '%02d' % s.month }} 月度概览{% endblock %}
 {% block content %}
-{% set palette = ['#e76f51','#2a9d8f','#e9c46a','#4a9fc9','#9b8cb5','#b0a99f','#f4a261','#606c38'] %}
+{% set palette = st.STATS_PALETTE %}
 <div class="trip-title-nav">
   <a class="title-nav-arrow" href="{{ url_for('expenses.monthly', ym=prev_ym) }}">←</a>
   <h1>{{ s.year }} 年 {{ s.month }} 月</h1>
@@ -9,55 +10,31 @@
 </div>
 
 <div class="kpi-row">
-  <div class="card kpi kpi-money">
-    <span class="kpi-label">支出</span>
-    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.total_expense) }}</span>
-    {% if s.mom.pct is not none %}
-    <span class="kpi-sub">环比{{ '+' if s.mom.diff >= 0 else '' }}{{ '{:,.2f}'.format(s.mom.diff) }}（{{ '{:+.1f}'.format(s.mom.pct) }}%）</span>
-    {% elif s.mom.diff %}
-    <span class="kpi-sub">环比{{ '+' if s.mom.diff >= 0 else '' }}{{ '{:,.2f}'.format(s.mom.diff) }}</span>
-    {% endif %}
-  </div>
-  <div class="card kpi">
-    <span class="kpi-label">收入</span>
-    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.total_income) }}</span>
-  </div>
-  <div class="card kpi">
-    <span class="kpi-label">结余</span>
-    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.balance) }}</span>
-  </div>
-  <div class="card kpi">
-    <span class="kpi-label">日均支出</span>
-    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.total_expense / (s.daily|length)) }}</span>
-  </div>
+  {% set exp_sub %}
+    {%- if s.mom.pct is not none -%}
+      环比{{ '+' if s.mom.diff >= 0 else '' }}{{ '{:,.2f}'.format(s.mom.diff) }}（{{ '{:+.1f}'.format(s.mom.pct) }}%）
+    {%- elif s.mom.diff -%}
+      环比{{ '+' if s.mom.diff >= 0 else '' }}{{ '{:,.2f}'.format(s.mom.diff) }}
+    {%- endif -%}
+  {% endset %}
+  {{ st.kpi('支出', '￥{:,.2f}'.format(s.total_expense), sub=exp_sub|trim, money=True) }}
+  {{ st.kpi('收入', '￥{:,.2f}'.format(s.total_income)) }}
+  {{ st.kpi('结余', '￥{:,.2f}'.format(s.balance)) }}
+  {{ st.kpi('日均支出', '￥{:,.2f}'.format(s.total_expense / (s.daily|length))) }}
 </div>
 
 {% if s.by_category %}
 <div class="cat-split">
-  <div class="card">
-    <h3>分类占比</h3>
-    <div class="donut-wrap">
-      <canvas id="catDonut"></canvas>
-      <div class="donut-center">
-        <span class="donut-center-label">支出</span>
-        <span class="donut-center-value">￥{{ '{:,.2f}'.format(s.total_expense) }}</span>
-      </div>
-    </div>
-  </div>
+  {{ st.donut_card('分类占比', 'catDonut', '支出', '￥{:,.2f}'.format(s.total_expense)) }}
   <div class="card">
     <h3>分类明细</h3>
     <ol class="top-list">
       {% for c in s.by_category %}
       {% set color = palette[loop.index0 % 8] %}
-      <li class="top-item">
-        <span class="top-bar" style="background: {{ color }}"></span>
-        <span class="top-main">
-          <span class="top-title">{{ c.icon or '' }} {{ c.category }}</span>
-          <span class="top-meta">占 {{ '{:.1f}'.format(c.pct) }}%</span>
-          <span class="mini-bar"><i style="width: {{ c.pct if c.pct <= 100 else 100 }}%; background: {{ color }}"></i></span>
-        </span>
-        <span class="top-amount">￥{{ '{:,.2f}'.format(c.total) }}</span>
-      </li>
+      {% call st.top_item(c.total, color, bar_pct=c.pct) %}
+        <span class="top-title">{{ c.icon or '' }} {{ c.category }}</span>
+        <span class="top-meta">占 {{ '{:.1f}'.format(c.pct) }}%</span>
+      {% endcall %}
       {% endfor %}
     </ol>
   </div>
@@ -79,14 +56,10 @@
     {% if s.top_records %}
     <ol class="top-list">
       {% for r in s.top_records %}
-      <li class="top-item">
-        <span class="top-bar" style="background: #e76f51"></span>
-        <span class="top-main">
-          <span class="top-title">{{ r.category.display_icon or '' }} {{ r.note or r.category.name }}</span>
-          <span class="top-meta">{{ r.date.isoformat() }} · {{ r.category.name }}{% if r.tag %} · #{{ r.tag.name }}{% endif %}</span>
-        </span>
-        <span class="top-amount">￥{{ '{:,.2f}'.format(r.amount) }}</span>
-      </li>
+      {% call st.top_item(r.amount, '#e76f51') %}
+        <span class="top-title">{{ r.category.display_icon or '' }} {{ r.note or r.category.name }}</span>
+        <span class="top-meta">{{ r.date.isoformat() }} · {{ r.category.name }}{% if r.tag %} · #{{ r.tag.name }}{% endif %}</span>
+      {% endcall %}
       {% endfor %}
     </ol>
     {% else %}
@@ -99,14 +72,9 @@
     {% set tag_max = s.tag_top[0].total %}
     <ol class="top-list">
       {% for t in s.tag_top %}
-      <li class="top-item">
-        <span class="top-bar" style="background: #4a9fc9"></span>
-        <span class="top-main">
-          <span class="top-title">#{{ t.tag }}</span>
-          <span class="mini-bar"><i style="width: {{ (t.total / tag_max * 100) if tag_max else 0 }}%; background: #4a9fc9"></i></span>
-        </span>
-        <span class="top-amount">￥{{ '{:,.2f}'.format(t.total) }}</span>
-      </li>
+      {% call st.top_item(t.total, '#4a9fc9', bar_pct=(t.total / tag_max * 100) if tag_max else 0) %}
+        <span class="top-title">#{{ t.tag }}</span>
+      {% endcall %}
       {% endfor %}
     </ol>
     {% else %}
@@ -118,37 +86,13 @@
 
 {% block scripts %}
 {% if s.by_category %}
+<script src="{{ url_for('static', filename='expenses-stats.js') }}"></script>
 <script>
 const catData = {{ cat_json | safe }};
 const dailyData = {{ daily_json | safe }};
-const palette = ['#e76f51','#2a9d8f','#e9c46a','#4a9fc9','#9b8cb5','#b0a99f','#f4a261','#606c38'];
-Chart.defaults.font.family = "system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif";
-const fmt = v => '￥' + v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const curMonth = {{ s.month }};
 
-new Chart(document.getElementById('catDonut'), {
-  type: 'doughnut',
-  data: {
-    labels: catData.map(c => c.category),
-    datasets: [{
-      data: catData.map(c => c.total),
-      backgroundColor: catData.map((c, i) => palette[i % palette.length]),
-      borderWidth: 2, borderColor: '#fff', hoverOffset: 10,
-    }],
-  },
-  options: {
-    maintainAspectRatio: false,
-    cutout: '64%',
-    plugins: {
-      legend: { display: false },
-      tooltip: { callbacks: { label: i => {
-        const total = catData.reduce((a, c) => a + c.total, 0);
-        const pct = total ? (i.raw / total * 100).toFixed(1) : 0;
-        return ` ${i.label}  ${fmt(i.raw)}  (${pct}%)`;
-      } } },
-    },
-  },
-});
+expMakeDonut('catDonut', catData);
 
 new Chart(document.getElementById('dailyBar'), {
   type: 'bar',
@@ -161,7 +105,7 @@ new Chart(document.getElementById('dailyBar'), {
       legend: { display: false },
       tooltip: { callbacks: {
         title: items => `${curMonth}月${items[0].label}日`,
-        label: i => fmt(i.raw),
+        label: i => expFmt(i.raw),
       } },
     },
     scales: {

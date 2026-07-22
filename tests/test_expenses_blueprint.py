@@ -57,6 +57,64 @@ def test_edit_record(client, app):
         assert r.note == "改过了"
 
 
+def test_edit_get_xhr_returns_inline_form_fragment(client, app):
+    _, lunch_id = _seed_categories(app)
+    with app.app_context():
+        r = ExpenseRecord(kind="支出", date=dt.date(2025, 6, 1), category_id=lunch_id,
+                          amount=Decimal("10.00"), source="manual")
+        db.session.add(r)
+        db.session.commit()
+        rid = r.id
+    resp = client.get(f"/expenses/{rid}/edit", headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 200
+    text = resp.get_data(as_text=True)
+    assert "exp-inline-form" in text
+    assert "<html" not in text.lower()  # 只返回片段，不是整页
+
+
+def test_edit_post_xhr_returns_json_with_updated_row_html(client, app):
+    _, lunch_id = _seed_categories(app)
+    with app.app_context():
+        r = ExpenseRecord(kind="支出", date=dt.date(2025, 6, 1), category_id=lunch_id,
+                          amount=Decimal("10.00"), source="manual")
+        db.session.add(r)
+        db.session.commit()
+        rid = r.id
+    resp = client.post(f"/expenses/{rid}/edit", data={
+        "kind": "支出", "date": "2025-06-02", "category_id": str(lunch_id),
+        "amount": "99.00", "tag_name": "", "note": "异步改过了",
+    }, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+    assert "异步改过了" in data["html"]
+    with app.app_context():
+        r = db.session.get(ExpenseRecord, rid)
+        assert r.amount == Decimal("99.00")
+        assert r.note == "异步改过了"
+
+
+def test_edit_post_xhr_with_bad_category_returns_json_error(client, app):
+    _, lunch_id = _seed_categories(app)
+    with app.app_context():
+        r = ExpenseRecord(kind="支出", date=dt.date(2025, 6, 1), category_id=lunch_id,
+                          amount=Decimal("10.00"), source="manual")
+        db.session.add(r)
+        db.session.commit()
+        rid = r.id
+    resp = client.post(f"/expenses/{rid}/edit", data={
+        "kind": "支出", "date": "2025-06-02", "category_id": "999999",
+        "amount": "99.00", "tag_name": "", "note": "不应该保存",
+    }, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["ok"] is False
+    assert data["error"]
+    with app.app_context():
+        r = db.session.get(ExpenseRecord, rid)
+        assert r.note is None
+
+
 def test_delete_record(client, app):
     _, lunch_id = _seed_categories(app)
     with app.app_context():
@@ -87,6 +145,25 @@ def test_list_filters_by_keyword(client, app):
     assert "星巴克" not in text
 
 
+def test_list_filters_by_empty_tag(client, app):
+    _, lunch_id = _seed_categories(app)
+    with app.app_context():
+        tag = ExpenseTag(name="聚餐")
+        db.session.add(tag)
+        db.session.commit()
+        db.session.add_all([
+            ExpenseRecord(kind="支出", date=dt.date(2025, 6, 1), category_id=lunch_id,
+                         amount=Decimal("10.00"), note="无标签这条", source="manual"),
+            ExpenseRecord(kind="支出", date=dt.date(2025, 6, 2), category_id=lunch_id,
+                         amount=Decimal("20.00"), note="有标签这条", tag_id=tag.id, source="manual"),
+        ])
+        db.session.commit()
+    resp = client.get("/expenses/?tag_id=0")
+    text = resp.get_data(as_text=True)
+    assert "无标签这条" in text
+    assert "有标签这条" not in text
+
+
 def test_monthly_and_yearly_pages_load(client, app):
     _, lunch_id = _seed_categories(app)
     with app.app_context():
@@ -110,6 +187,40 @@ def test_overview_page_loads_with_and_without_data(client, app):
     resp = client.get("/expenses/overview")
     assert resp.status_code == 200
     assert "整体统计" in resp.get_data(as_text=True)
+
+
+def test_clear_by_year_only_removes_that_year(client, app):
+    _, lunch_id = _seed_categories(app)
+    with app.app_context():
+        db.session.add_all([
+            ExpenseRecord(kind="支出", date=dt.date(2023, 6, 1), category_id=lunch_id,
+                         amount=Decimal("10.00"), source="manual"),
+            ExpenseRecord(kind="支出", date=dt.date(2024, 6, 1), category_id=lunch_id,
+                         amount=Decimal("20.00"), source="manual"),
+        ])
+        db.session.commit()
+    resp = client.post("/expenses/clear", data={"year": "2023"}, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        remaining = ExpenseRecord.query.all()
+        assert len(remaining) == 1
+        assert remaining[0].date.year == 2024
+
+
+def test_clear_all_removes_every_record(client, app):
+    _, lunch_id = _seed_categories(app)
+    with app.app_context():
+        db.session.add_all([
+            ExpenseRecord(kind="支出", date=dt.date(2023, 6, 1), category_id=lunch_id,
+                         amount=Decimal("10.00"), source="manual"),
+            ExpenseRecord(kind="支出", date=dt.date(2024, 6, 1), category_id=lunch_id,
+                         amount=Decimal("20.00"), source="manual"),
+        ])
+        db.session.commit()
+    resp = client.post("/expenses/clear", data={"year": ""}, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        assert ExpenseRecord.query.count() == 0
 
 
 def test_import_route_creates_records(client, app):

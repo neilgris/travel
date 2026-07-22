@@ -1,0 +1,26 @@
+<li class="card tl-item exp-item exp-item-editing" data-record-id="{{ record.id }}">
+  <form class="exp-inline-form" data-edit-url="{{ url_for('expenses.edit', record_id=record.id) }}"
+        data-cur-kind="{{ record.kind }}"
+        data-cur-cat1="{{ record.category.parent_id or record.category.id }}"
+        data-cur-cat2="{{ record.category_id }}">
+    <div class="exp-inline-row">
+      <select name="kind" class="exp-inline-kind" title="收支">
+        {% for k in kinds %}
+        <option value="{{ k }}" {% if record.kind == k %}selected{% endif %}>{{ k }}</option>
+        {% endfor %}
+      </select>
+      <input type="date" name="date" value="{{ record.date.isoformat() }}" required title="日期">
+      <input type="number" step="0.01" min="0" name="amount" value="{{ record.amount }}"
+             required title="金额" class="exp-inline-amount">
+      <select class="exp-inline-cat1" title="一级分类"></select>
+      <select class="exp-inline-cat2" name="category_id" title="二级分类"></select>
+      <input type="text" name="tag_name" value="{{ record.tag.name if record.tag else '' }}"
+             placeholder="标签" title="标签" list="exp-tag-options" class="exp-inline-tag">
+      <input type="text" name="note" value="{{ record.note or '' }}" placeholder="备注" title="备注"
+             class="exp-inline-note">
+      <button class="btn btn-sm" type="submit">保存</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-cancel>取消</button>
+    </div>
+    <p class="exp-inline-error" hidden></p>
+  </form>
+</li>

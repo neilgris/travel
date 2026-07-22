@@ -1,0 +1,42 @@
+{# 月度/年度/总览三页共用的展示片段。三页本质是同一套仪表盘的日/月/年三档，
+   KPI 磁贴、甜甜圈卡片、排行榜行的结构一致，抽到这里一处维护。 #}
+
+{% set STATS_PALETTE = ['#e76f51','#2a9d8f','#e9c46a','#4a9fc9','#9b8cb5','#b0a99f','#f4a261','#606c38'] %}
+
+{# 单个 KPI 磁贴。money=True 用强调色（首个"支出"贴）。sub 为副行文本，可留空。 #}
+{% macro kpi(label, value, sub=None, money=False) %}
+<div class="card kpi{{ ' kpi-money' if money }}">
+  <span class="kpi-label">{{ label }}</span>
+  <span class="kpi-value">{{ value }}</span>
+  {% if sub %}<span class="kpi-sub">{{ sub }}</span>{% endif %}
+</div>
+{% endmacro %}
+
+{# 甜甜圈占比卡片：中心叠一个合计。canvas_id 交给页面脚本用 expMakeDonut 挂图。 #}
+{% macro donut_card(title, canvas_id, center_label, center_value) %}
+<div class="card">
+  <h3>{{ title }}</h3>
+  <div class="donut-wrap">
+    <canvas id="{{ canvas_id }}"></canvas>
+    <div class="donut-center">
+      <span class="donut-center-label">{{ center_label }}</span>
+      <span class="donut-center-value">{{ center_value }}</span>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{# 排行榜里的一行。标题/副文由 caller() 提供（各榜内容不同）；给了 bar_pct
+   就画一条迷你占比条。amount 是 Decimal，统一两位千分位。 #}
+{% macro top_item(amount, color, bar_pct=None) %}
+<li class="top-item">
+  <span class="top-bar" style="background: {{ color }}"></span>
+  <span class="top-main">
+    {{ caller() }}
+    {% if bar_pct is not none %}
+    <span class="mini-bar"><i style="width: {{ bar_pct if bar_pct <= 100 else 100 }}%; background: {{ color }}"></i></span>
+    {% endif %}
+  </span>
+  <span class="top-amount">￥{{ '{:,.2f}'.format(amount) }}</span>
+</li>
+{% endmacro %}

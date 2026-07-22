@@ -30,6 +30,69 @@ def _top_category(cat):
     return cat if cat.parent_id is None else cat.parent
 
 
+# ---- 月度/年度/总览三处共用的聚合小工具 ----
+# 三个 stats 函数的查询范围各不相同（当月 / 循环 12 月 / 全量分桶），但「按分类归拢、
+# 按标签归拢、算占比排行」这几步逻辑是一样的，抽到这里，改口径只改一处。
+
+def _aggregate_by_top_category(records):
+    """把支出记录按一级分类归拢：{一级id: {category, icon, total(未量化)}}。"""
+    totals = {}
+    for r in records:
+        top = _top_category(r.category)
+        entry = totals.setdefault(top.id, {"category": top.name, "icon": top.icon, "total": ZERO})
+        entry["total"] += r.amount
+    return totals
+
+
+def _rank_categories(totals, total, prev_totals=None):
+    """一级分类排行：按金额降序，附占比 pct。传了 prev_totals 则每行再附同比 yoy。
+    total 是占比分母（各调用方按自己展示的支出合计传入）。"""
+    rows = []
+    for cid, entry in totals.items():
+        row = {"category": entry["category"], "icon": entry["icon"], "total": _q(entry["total"])}
+        if prev_totals is not None:
+            prev = prev_totals.get(cid)
+            row["yoy"] = _mom(entry["total"], prev["total"]) if prev else {"diff": None, "pct": None}
+        rows.append(row)
+    rows.sort(key=lambda e: e["total"], reverse=True)
+    for row in rows:
+        row["pct"] = _q(row["total"] / total * 100) if total else ZERO
+    return rows
+
+
+def _rank_subcategories(records, limit=10):
+    """二级分类排行 Top N：{category, parent, total}，只统计挂在二级下的记录。"""
+    totals = {}
+    for r in records:
+        cat = r.category
+        if cat.parent_id is None:
+            continue
+        entry = totals.setdefault(cat.id, {"category": cat.name, "parent": cat.parent.name, "total": ZERO})
+        entry["total"] += r.amount
+    rows = sorted(({**e, "total": _q(e["total"])} for e in totals.values()),
+                  key=lambda e: e["total"], reverse=True)
+    return rows[:limit]
+
+
+def _rank_tags(records, with_count=False, limit=10):
+    """标签榜 Top N：{tag, total[, count]}，跳过没打标签的记录。"""
+    totals = {}
+    for r in records:
+        if not r.tag:
+            continue
+        entry = totals.setdefault(r.tag.name, {"tag": r.tag.name, "total": ZERO, "count": 0})
+        entry["total"] += r.amount
+        entry["count"] += 1
+    rows = []
+    for e in totals.values():
+        row = {"tag": e["tag"], "total": _q(e["total"])}
+        if with_count:
+            row["count"] = e["count"]
+        rows.append(row)
+    rows.sort(key=lambda e: e["total"], reverse=True)
+    return rows[:limit]
+
+
 def monthly_stats(year, month):
     start = dt.date(year, month, 1)
     days_in_month = calendar.monthrange(year, month)[1]
@@ -50,15 +113,7 @@ def monthly_stats(year, month):
                  .with_entities(ExpenseRecord.amount).all())
     prev_expense = _q(sum((a for (a,) in prev_total), ZERO))
 
-    by_category = {}
-    for r in expenses:
-        top = _top_category(r.category)
-        entry = by_category.setdefault(top.id, {"category": top.name, "icon": top.icon, "total": ZERO})
-        entry["total"] += r.amount
-    cat_list = sorted(by_category.values(), key=lambda e: e["total"], reverse=True)
-    for e in cat_list:
-        e["total"] = _q(e["total"])
-        e["pct"] = _q(e["total"] / total_expense * 100) if total_expense else ZERO
+    cat_list = _rank_categories(_aggregate_by_top_category(expenses), total_expense)
 
     daily = {start + dt.timedelta(days=i): ZERO for i in range(days_in_month)}
     for r in expenses:
@@ -67,14 +122,7 @@ def monthly_stats(year, month):
 
     top_records = sorted(expenses, key=lambda r: r.amount, reverse=True)[:10]
 
-    tag_totals = {}
-    for r in expenses:
-        if not r.tag:
-            continue
-        entry = tag_totals.setdefault(r.tag.name, ZERO)
-        tag_totals[r.tag.name] = entry + r.amount
-    tag_top = sorted(({"tag": k, "total": _q(v)} for k, v in tag_totals.items()),
-                     key=lambda e: e["total"], reverse=True)[:10]
+    tag_top = _rank_tags(expenses)
 
     return {
         "year": year, "month": month,
@@ -88,19 +136,13 @@ def monthly_stats(year, month):
     }
 
 
-def _year_category_totals(year):
-    """{一级分类id: {"category":名, "icon":.., "total":Decimal}}，仅支出。"""
+def _year_expense_records(year):
+    """某年的全部支出记录。"""
     start, end = dt.date(year, 1, 1), dt.date(year, 12, 31)
-    records = (ExpenseRecord.query
-              .filter(ExpenseRecord.kind == "支出",
-                      ExpenseRecord.date >= start, ExpenseRecord.date <= end)
-              .all())
-    totals = {}
-    for r in records:
-        top = _top_category(r.category)
-        entry = totals.setdefault(top.id, {"category": top.name, "icon": top.icon, "total": ZERO})
-        entry["total"] += r.amount
-    return totals, records
+    return (ExpenseRecord.query
+            .filter(ExpenseRecord.kind == "支出",
+                    ExpenseRecord.date >= start, ExpenseRecord.date <= end)
+            .all())
 
 
 def yearly_stats(year, today=None):
@@ -116,41 +158,15 @@ def yearly_stats(year, today=None):
         income = _q(sum((a for k, a in rows if k == "收入"), ZERO))
         monthly.append({"month": m, "expense": expense, "income": income})
 
-    cur_totals, records = _year_category_totals(year)
-    prev_totals, _ = _year_category_totals(year - 1)
-    category_rank = []
-    for cid, entry in cur_totals.items():
-        prev = prev_totals.get(cid)
-        prev_total = prev["total"] if prev else ZERO
-        row = dict(entry, total=_q(entry["total"]))
-        row["yoy"] = _mom(entry["total"], prev_total) if prev else {"diff": None, "pct": None}
-        category_rank.append(row)
-    category_rank.sort(key=lambda e: e["total"], reverse=True)
-    year_expense = sum((e["total"] for e in category_rank), ZERO)
-    for row in category_rank:
-        row["pct"] = _q(row["total"] / year_expense * 100) if year_expense else ZERO
-
-    sub_totals = {}
-    for r in records:
-        cat = r.category
-        if cat.parent_id is None:
-            continue
-        entry = sub_totals.setdefault(cat.id, {"category": cat.name, "parent": cat.parent.name, "total": ZERO})
-        entry["total"] += r.amount
-    subcategory_top = sorted(({**e, "total": _q(e["total"])} for e in sub_totals.values()),
-                             key=lambda e: e["total"], reverse=True)[:10]
-
-    tag_totals = {}
-    for r in records:
-        if not r.tag:
-            continue
-        entry = tag_totals.setdefault(r.tag.name, {"tag": r.tag.name, "total": ZERO, "count": 0})
-        entry["total"] += r.amount
-        entry["count"] += 1
-    tag_rank = sorted(({**e, "total": _q(e["total"])} for e in tag_totals.values()),
-                      key=lambda e: e["total"], reverse=True)[:10]
-
+    records = _year_expense_records(year)
+    cur_totals = _aggregate_by_top_category(records)
+    prev_totals = _aggregate_by_top_category(_year_expense_records(year - 1))
     total_expense = _q(sum((r.amount for r in records), ZERO))
+    category_rank = _rank_categories(cur_totals, total_expense, prev_totals)
+
+    subcategory_top = _rank_subcategories(records)
+    tag_rank = _rank_tags(records, with_count=True)
+
     total_income = _q(sum((a for row in monthly for a in (row["income"],)), ZERO))
     days_with_expense = len({r.date for r in records})
     max_single = max(records, key=lambda r: r.amount) if records else None
@@ -244,15 +260,8 @@ def overview_stats(today=None):
         })
 
     # 一级分类全时段排行
-    cat_totals = {}
-    for r in expenses:
-        top = _top_category(r.category)
-        entry = cat_totals.setdefault(top.id, {"category": top.name, "icon": top.icon, "total": ZERO})
-        entry["total"] += r.amount
-    category_rank = sorted(cat_totals.values(), key=lambda e: e["total"], reverse=True)
-    for row in category_rank:
-        row["total"] = _q(row["total"])
-        row["pct"] = _q(row["total"] / total_expense * 100) if total_expense else ZERO
+    cat_totals = _aggregate_by_top_category(expenses)
+    category_rank = _rank_categories(cat_totals, total_expense)
 
     # 分类 × 年份 堆叠矩阵：前 N 名单独成段，其余并入「其他」
     main_names = [c["category"] for c in category_rank[:_STACK_TOP_N]]
@@ -266,27 +275,9 @@ def overview_stats(today=None):
         matrix[id_to_stack[top.id]][r.date.year] += r.amount
     cat_year_matrix = {name: [_q(matrix[name][y]) for y in years] for name in stack_cats}
 
-    # 二级分类全时段 Top 10
-    sub_totals = {}
-    for r in expenses:
-        cat = r.category
-        if cat.parent_id is None:
-            continue
-        entry = sub_totals.setdefault(cat.id, {"category": cat.name, "parent": cat.parent.name, "total": ZERO})
-        entry["total"] += r.amount
-    subcategory_top = sorted(({**e, "total": _q(e["total"])} for e in sub_totals.values()),
-                             key=lambda e: e["total"], reverse=True)[:10]
-
-    # 标签全时段榜
-    tag_totals = {}
-    for r in expenses:
-        if not r.tag:
-            continue
-        entry = tag_totals.setdefault(r.tag.name, {"tag": r.tag.name, "total": ZERO, "count": 0})
-        entry["total"] += r.amount
-        entry["count"] += 1
-    tag_rank = sorted(({**e, "total": _q(e["total"])} for e in tag_totals.values()),
-                      key=lambda e: e["total"], reverse=True)[:10]
+    # 二级分类全时段 Top 10 + 标签全时段榜
+    subcategory_top = _rank_subcategories(expenses)
+    tag_rank = _rank_tags(expenses, with_count=True)
 
     years_with_expense = [row for row in yearly if row["expense"] > 0]
     top_year = max(years_with_expense, key=lambda r: r["expense"]) if years_with_expense else None

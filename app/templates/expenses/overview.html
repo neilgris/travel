@@ -1,40 +1,21 @@
 {% extends "base.html" %}
+{% import "expenses/_stats_macros.html" as st %}
 {% block title %}整体统计{% endblock %}
 {% block content %}
-{% set palette = ['#e76f51','#2a9d8f','#e9c46a','#4a9fc9','#9b8cb5','#f4a261','#606c38','#b0a99f'] %}
+{% set palette = st.STATS_PALETTE %}
 <div class="trip-title-nav">
   <h1>整体统计{% if s.first_date %} · {{ s.first_date.year }}–{{ s.last_date.year }}{% endif %}</h1>
 </div>
 
 {% if s.years %}
 <div class="kpi-row kpi-row-6">
-  <div class="card kpi kpi-money">
-    <span class="kpi-label">累计支出</span>
-    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.total_expense) }}</span>
-  </div>
-  <div class="card kpi">
-    <span class="kpi-label">累计收入</span>
-    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.total_income) }}</span>
-  </div>
-  <div class="card kpi">
-    <span class="kpi-label">累计结余</span>
-    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.balance) }}</span>
-    {% if s.savings_rate is not none %}
-    <span class="kpi-sub">结余率 {{ '{:.1f}'.format(s.savings_rate) }}%</span>
-    {% endif %}
-  </div>
-  <div class="card kpi">
-    <span class="kpi-label">年均支出</span>
-    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.avg_year_expense) }}</span>
-  </div>
-  <div class="card kpi">
-    <span class="kpi-label">日均支出</span>
-    <span class="kpi-value">￥{{ '{:,.2f}'.format(s.avg_day_expense) }}</span>
-  </div>
-  <div class="card kpi">
-    <span class="kpi-label">支出笔数</span>
-    <span class="kpi-value">{{ s.record_count }}</span>
-  </div>
+  {{ st.kpi('累计支出', '￥{:,.2f}'.format(s.total_expense), money=True) }}
+  {{ st.kpi('累计收入', '￥{:,.2f}'.format(s.total_income)) }}
+  {{ st.kpi('累计结余', '￥{:,.2f}'.format(s.balance),
+            sub=('结余率 {:.1f}%'.format(s.savings_rate) if s.savings_rate is not none else None)) }}
+  {{ st.kpi('年均支出', '￥{:,.2f}'.format(s.avg_year_expense)) }}
+  {{ st.kpi('日均支出', '￥{:,.2f}'.format(s.avg_day_expense)) }}
+  {{ st.kpi('支出笔数', s.record_count) }}
 </div>
 
 <div class="ms-row">
@@ -77,30 +58,16 @@
 </div>
 
 <div class="cat-split">
-  <div class="card">
-    <h3>全时段分类占比</h3>
-    <div class="donut-wrap">
-      <canvas id="overviewCatDonut"></canvas>
-      <div class="donut-center">
-        <span class="donut-center-label">累计支出</span>
-        <span class="donut-center-value">￥{{ '{:,.0f}'.format(s.total_expense) }}</span>
-      </div>
-    </div>
-  </div>
+  {{ st.donut_card('全时段分类占比', 'overviewCatDonut', '累计支出', '￥{:,.0f}'.format(s.total_expense)) }}
   <div class="card">
     <h3>一级分类排行</h3>
     <ol class="top-list">
       {% for c in s.category_rank %}
       {% set color = palette[loop.index0 % 8] %}
-      <li class="top-item">
-        <span class="top-bar" style="background: {{ color }}"></span>
-        <span class="top-main">
-          <span class="top-title">{{ c.icon or '' }} {{ c.category }}</span>
-          <span class="top-meta">占 {{ '{:.1f}'.format(c.pct) }}%</span>
-          <span class="mini-bar"><i style="width: {{ c.pct if c.pct <= 100 else 100 }}%; background: {{ color }}"></i></span>
-        </span>
-        <span class="top-amount">￥{{ '{:,.2f}'.format(c.total) }}</span>
-      </li>
+      {% call st.top_item(c.total, color, bar_pct=c.pct) %}
+        <span class="top-title">{{ c.icon or '' }} {{ c.category }}</span>
+        <span class="top-meta">占 {{ '{:.1f}'.format(c.pct) }}%</span>
+      {% endcall %}
       {% endfor %}
     </ol>
   </div>
@@ -141,14 +108,9 @@
     <ol class="top-list">
       {% for c in s.subcategory_top %}
       {% set color = palette[loop.index0 % 8] %}
-      <li class="top-item">
-        <span class="top-bar" style="background: {{ color }}"></span>
-        <span class="top-main">
-          <span class="top-title">{{ c.parent }} · {{ c.category }}</span>
-          <span class="mini-bar"><i style="width: {{ (c.total / sub_max * 100) if sub_max else 0 }}%; background: {{ color }}"></i></span>
-        </span>
-        <span class="top-amount">￥{{ '{:,.2f}'.format(c.total) }}</span>
-      </li>
+      {% call st.top_item(c.total, color, bar_pct=(c.total / sub_max * 100) if sub_max else 0) %}
+        <span class="top-title">{{ c.parent }} · {{ c.category }}</span>
+      {% endcall %}
       {% endfor %}
     </ol>
     {% else %}
@@ -161,15 +123,10 @@
     {% set tag_max = s.tag_rank[0].total %}
     <ol class="top-list">
       {% for t in s.tag_rank %}
-      <li class="top-item">
-        <span class="top-bar" style="background: #4a9fc9"></span>
-        <span class="top-main">
-          <span class="top-title">#{{ t.tag }}</span>
-          <span class="top-meta">{{ t.count }} 笔</span>
-          <span class="mini-bar"><i style="width: {{ (t.total / tag_max * 100) if tag_max else 0 }}%; background: #4a9fc9"></i></span>
-        </span>
-        <span class="top-amount">￥{{ '{:,.2f}'.format(t.total) }}</span>
-      </li>
+      {% call st.top_item(t.total, '#4a9fc9', bar_pct=(t.total / tag_max * 100) if tag_max else 0) %}
+        <span class="top-title">#{{ t.tag }}</span>
+        <span class="top-meta">{{ t.count }} 笔</span>
+      {% endcall %}
       {% endfor %}
     </ol>
     {% else %}
@@ -186,14 +143,10 @@
 
 {% block scripts %}
 {% if s.years %}
+<script src="{{ url_for('static', filename='expenses-stats.js') }}"></script>
 <script>
 const yearData = {{ yearly_json | safe }};
 const stacked = {{ stacked_json | safe }};
-const catData = {{ cat_json | safe }};
-const palette = ['#e76f51','#2a9d8f','#e9c46a','#4a9fc9','#9b8cb5','#f4a261','#606c38','#b0a99f'];
-Chart.defaults.font.family = "system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif";
-const fmt = v => '￥' + v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmt0 = v => '￥' + Math.round(v).toLocaleString('zh-CN');
 
 // 逐年支出/收入 双折线
 new Chart(document.getElementById('yearTrend'), {
@@ -208,7 +161,7 @@ new Chart(document.getElementById('yearTrend'), {
   options: {
     plugins: {
       legend: { position: 'bottom' },
-      tooltip: { callbacks: { label: i => ` ${i.dataset.label}  ${fmt(i.raw)}` } },
+      tooltip: { callbacks: { label: i => ` ${i.dataset.label}  ${expFmt(i.raw)}` } },
     },
     scales: {
       x: { grid: { display: false } },
@@ -225,14 +178,14 @@ new Chart(document.getElementById('catStack'), {
     datasets: stacked.series.map((ser, i) => ({
       label: ser.category,
       data: ser.data,
-      backgroundColor: palette[i % palette.length],
+      backgroundColor: EXP_PALETTE[i % EXP_PALETTE.length],
       borderWidth: 0,
     })),
   },
   options: {
     plugins: {
       legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' } },
-      tooltip: { callbacks: { label: i => ` ${i.dataset.label}  ${fmt0(i.raw)}` } },
+      tooltip: { callbacks: { label: i => ` ${i.dataset.label}  ${expFmt0(i.raw)}` } },
     },
     scales: {
       x: { stacked: true, grid: { display: false } },
@@ -242,29 +195,7 @@ new Chart(document.getElementById('catStack'), {
 });
 
 // 全时段分类占比 环图
-new Chart(document.getElementById('overviewCatDonut'), {
-  type: 'doughnut',
-  data: {
-    labels: catData.map(c => c.category),
-    datasets: [{
-      data: catData.map(c => c.total),
-      backgroundColor: catData.map((c, i) => palette[i % palette.length]),
-      borderWidth: 2, borderColor: '#fff', hoverOffset: 10,
-    }],
-  },
-  options: {
-    maintainAspectRatio: false,
-    cutout: '64%',
-    plugins: {
-      legend: { display: false },
-      tooltip: { callbacks: { label: i => {
-        const total = catData.reduce((a, c) => a + c.total, 0);
-        const pct = total ? (i.raw / total * 100).toFixed(1) : 0;
-        return ` ${i.label}  ${fmt(i.raw)}  (${pct}%)`;
-      } } },
-    },
-  },
-});
+expMakeDonut('overviewCatDonut', {{ cat_json | safe }});
 </script>
 {% endif %}
 {% endblock %}

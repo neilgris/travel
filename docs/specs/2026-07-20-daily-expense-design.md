@@ -138,9 +138,12 @@ sha1("kind|date|一级分类|二级分类|金额|商家|备注|同键序号")
 ```
 app/models/expense.py            ExpenseCategory / ExpenseTag / ExpenseRecord + DEFAULT_CATEGORIES
 app/services/expense_import.py   解析两个 sheet → 查建分类/标签 → 指纹去重写入 → 返回统计
-app/services/expense_stats.py    月度、年度、分类聚合、标签榜（纯查询，无 HTTP）
+app/services/expense_stats.py    月度、年度、整体统计聚合 + 共用聚合小工具（一级/二级分类、标签排行；纯查询，无 HTTP）
 app/blueprints/expenses.py       url_prefix=/expenses
-app/templates/expenses/          list / form / monthly / yearly / import / categories .html
+app/templates/expenses/          list / form / monthly / yearly / overview / import / categories .html
+                                 _list_results / _item_row / _inline_edit_form（流水行内编辑片段）
+                                 _stats_macros.html（月/年/总览共用 KPI·环图·排行榜宏）
+app/static/expenses-stats.js     月/年/总览共用图表工具（调色板、金额格式化、环图工厂）
 ```
 
 既有的 `app/services/import_expense.py` 是**旅程专用**的（要匹配 Trip 的 Day 与申报币种），语义不同，本模块另起 `expense_import.py`，不改动它。
@@ -149,11 +152,12 @@ app/templates/expenses/          list / form / monthly / yearly / import / categ
 
 | 路由 | 内容 |
 |---|---|
-| `GET /expenses/` | 流水列表：按月分组 + 吸顶月份标题与当月小计（复用旅程列表的分组样式）；筛选 年月 / 收支 / 一级·二级分类 / 标签 / 备注关键词 |
-| `GET,POST /expenses/new`<br>`GET,POST /expenses/<id>/edit`<br>`POST /expenses/<id>/delete` | 单条增删改：日期、收支、分类（一级联动二级）、金额、标签（单选下拉，可新建）、备注 |
+| `GET /expenses/` | 流水列表：按月分组 + 吸顶月份标题与当月小计（复用旅程列表的分组样式）；筛选 年月 / 收支 / 一级·二级分类 / 标签（含「空」= 筛无标签记录）/ 备注关键词。点击某行原地下拉成表单、异步保存不刷新页面 |
+| `GET,POST /expenses/new`<br>`GET,POST /expenses/<id>/edit`<br>`POST /expenses/<id>/delete` | 单条增删改：日期、收支、分类（一级联动二级）、金额、标签（单选下拉，可新建）、备注。`edit` 带 `X-Requested-With` 时返回行内编辑片段（GET）或更新后的行 JSON（POST），供流水页异步编辑 |
 | `GET /expenses/monthly?ym=YYYY-MM` | 当月仪表盘 |
 | `GET /expenses/yearly?year=YYYY` | 年度分析 |
-| `GET,POST /expenses/import` | 上传 `.xls`，写入后展示结果摘要 |
+| `GET /expenses/overview` | 整体统计：跨全部年份的对比看板 |
+| `GET,POST /expenses/import` | 上传 `.xls`，写入后展示结果摘要；页内含危险操作区：`POST /expenses/clear` 清空全部或按年清空流水 |
 | `GET,POST /expenses/categories` | 分类树增删改排序 + 标签管理 |
 
 ## 7. 统计口径
@@ -204,7 +208,7 @@ TDD，`tests/` 与模块一一对应：
 - `tests/test_expense_models.py`——两级约束、删除策略、唯一约束
 - `tests/test_expense_import.py`——列映射、日期截断、分类/标签自动建、指纹去重（重复导入零新增）
 - `tests/test_expense_stats.py`——月度/年度各项口径、环比同比边界（除零、无上期数据）
-- `tests/test_expenses_blueprint.py`——列表筛选、增删改、导入流程
+- `tests/test_expenses_blueprint.py`——列表筛选（含空标签）、增删改（含行内异步编辑）、清空全部/按年、导入流程
 
 ## 10. 数据库
 

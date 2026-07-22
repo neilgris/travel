@@ -1267,6 +1267,23 @@ a.ms-card:hover { transform: translateY(-2px); transition: transform .15s; }
 .exp-list-compact .tl-title { font-size: .85rem; }
 .exp-list-compact .tl-meta { font-size: .74rem; }
 
+/* 流水行内编辑：点一行原地下拉成表单，替换掉 .tl-item 的横向 flex 布局。
+   所有控件挤进一行 flex-wrap，屏幕不够宽时自然只落到两行，不用单独的两行栅格。 */
+.exp-item-editing { display: block; padding: .5rem .7rem; cursor: default; }
+.exp-inline-row { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+.exp-inline-row input, .exp-inline-row select {
+  width: auto; padding: .3rem .45rem; font-size: .82rem;
+}
+.exp-inline-kind { flex: 0 0 4.2rem; }
+.exp-inline-row input[type="date"] { flex: 0 0 8.6rem; }
+.exp-inline-amount { flex: 0 0 5.2rem; }
+.exp-inline-cat1 { flex: 0 0 6.6rem; }
+.exp-inline-cat2 { flex: 0 0 6.6rem; }
+.exp-inline-tag { flex: 0 0 5.6rem; }
+.exp-inline-note { flex: 1 1 8rem; min-width: 5rem; }
+.exp-inline-row .btn-sm { flex: 0 0 auto; padding: .3rem .7rem; }
+.exp-inline-error { margin: .35rem 0 0; font-size: .8rem; color: var(--accent-dark); }
+
 /* ---- 分类管理：图标框收窄，名称框吃满剩余空间 ----
    用独立类名 exp-cat-edit（而不是复用 .inline-edit）避免和设置页
    .inline-edit input[name="name"] 等城市/同行人专用的宽度规则打架。 */
