@@ -4,14 +4,16 @@
 import datetime as dt
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
+from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.blueprints._json import safe_json
-from app.models.expense import ExpenseCategory, ExpenseTag, ExpenseRecord, EXPENSE_KINDS, seed_default_categories
+from app.models.expense import (ExpenseCategory, ExpenseTag, ExpenseRecord, EXPENSE_KINDS,
+                                seed_default_categories, guess_icon)
 from app.services.expense_import import parse_rows, import_rows
-from app.services.expense_stats import monthly_stats, yearly_stats
+from app.services.expense_stats import monthly_stats, yearly_stats, overview_stats
 
 bp = Blueprint("expenses", __name__, url_prefix="/expenses")
 
@@ -83,7 +85,13 @@ def list():
             expanded.update(c.id for c in top.children)
         query = query.filter(ExpenseRecord.category_id.in_(expanded))
     if tag_ids:
-        query = query.filter(ExpenseRecord.tag_id.in_(tag_ids))
+        real_tag_ids = [t for t in tag_ids if t]
+        conditions = []
+        if 0 in tag_ids:
+            conditions.append(ExpenseRecord.tag_id.is_(None))
+        if real_tag_ids:
+            conditions.append(ExpenseRecord.tag_id.in_(real_tag_ids))
+        query = query.filter(or_(*conditions))
     if q:
         query = query.filter(ExpenseRecord.note.ilike(f"%{q}%"))
 
@@ -113,23 +121,24 @@ def list():
     return render_template(template, groups=groups,
                            kinds=EXPENSE_KINDS, categories=_category_tree(), years=_recent_years(),
                            tags=ExpenseTag.query.order_by(ExpenseTag.name).all(),
+                           categories_json=_category_tree_json(),
                            filters={"kind": kind, "ym": ym, "year": year, "category_id": category_ids,
                                     "tag_id": tag_ids, "q": q})
 
 
 def _apply_record_form(record):
+    """把提交的表单写进 record；成功返回 None，失败返回错误信息（不再直接 flash，
+    XHR 场景要把这条消息塞进 JSON 而不是走 flash）。"""
     kind = request.form["kind"]
     if kind not in EXPENSE_KINDS:
         abort(400)
-    category = db.session.get(ExpenseCategory, int(request.form["category_id"]))
+    category = db.session.get(ExpenseCategory, request.form.get("category_id", type=int) or 0)
     if category is None or category.kind != kind:
-        flash("请选择有效的分类")
-        return False
+        return "请选择有效的分类"
     try:
         amount = Decimal(request.form["amount"])
     except (InvalidOperation, KeyError):
-        flash("金额格式不对")
-        return False
+        return "金额格式不对"
     tag_name = (request.form.get("tag_name") or "").strip()
     tag = None
     if tag_name:
@@ -144,18 +153,20 @@ def _apply_record_form(record):
     record.tag_id = tag.id if tag else None
     record.amount = amount
     record.note = request.form.get("note") or None
-    return True
+    return None
 
 
 @bp.route("/new", methods=["GET", "POST"])
 def create():
     if request.method == "POST":
         record = ExpenseRecord(source="manual")
-        if _apply_record_form(record):
+        error = _apply_record_form(record)
+        if not error:
             db.session.add(record)
             db.session.commit()
             flash("已添加记录")
             return redirect(url_for("expenses.list"))
+        flash(error)
     return render_template("expenses/form.html", record=None, kinds=EXPENSE_KINDS,
                            categories_json=_category_tree_json(), today=dt.date.today(),
                            tags=ExpenseTag.query.order_by(ExpenseTag.name).all())
@@ -164,11 +175,21 @@ def create():
 @bp.route("/<int:record_id>/edit", methods=["GET", "POST"])
 def edit(record_id):
     record = db.get_or_404(ExpenseRecord, record_id)
+    is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if request.method == "POST":
-        if _apply_record_form(record):
+        error = _apply_record_form(record)
+        if not error:
             db.session.commit()
+            if is_xhr:
+                return jsonify(ok=True, html=render_template("expenses/_item_row.html", r=record))
             flash("已更新记录")
             return redirect(url_for("expenses.list"))
+        if is_xhr:
+            return jsonify(ok=False, error=error), 400
+        flash(error)
+    if is_xhr:
+        return render_template("expenses/_inline_edit_form.html", record=record,
+                               kinds=EXPENSE_KINDS, tags=ExpenseTag.query.order_by(ExpenseTag.name).all())
     return render_template("expenses/form.html", record=record, kinds=EXPENSE_KINDS,
                            categories_json=_category_tree_json(), today=dt.date.today(),
                            tags=ExpenseTag.query.order_by(ExpenseTag.name).all())
@@ -204,9 +225,28 @@ def monthly():
 def yearly():
     year = request.args.get("year", type=int) or dt.date.today().year
     s = yearly_stats(year)
-    return render_template("expenses/yearly.html", s=s, year=year,
+    cur_month = dt.date.today().month if year == dt.date.today().year else 12
+    return render_template("expenses/yearly.html", s=s, year=year, cur_month=cur_month,
                            monthly_json=safe_json([{"month": m["month"], "expense": float(m["expense"]),
-                                                    "income": float(m["income"])} for m in s["monthly"]]))
+                                                    "income": float(m["income"])} for m in s["monthly"]]),
+                           cat_json=safe_json([{"category": c["category"], "total": float(c["total"])}
+                                               for c in s["category_rank"]]))
+
+
+@bp.route("/overview")
+def overview():
+    s = overview_stats()
+    yearly_json = safe_json([{"year": r["year"], "expense": float(r["expense"]),
+                              "income": float(r["income"])} for r in s["yearly"]])
+    stacked_json = safe_json({
+        "years": s["years"],
+        "series": [{"category": name, "data": [float(v) for v in s["cat_year_matrix"][name]]}
+                   for name in s["stack_cats"]],
+    })
+    cat_json = safe_json([{"category": c["category"], "total": float(c["total"])}
+                          for c in s["category_rank"]])
+    return render_template("expenses/overview.html", s=s,
+                           yearly_json=yearly_json, stacked_json=stacked_json, cat_json=cat_json)
 
 
 @bp.route("/import", methods=["GET", "POST"])
@@ -221,7 +261,24 @@ def import_file():
         flash(f"导入完成：新增 {result['created']} 条 · 跳过 {result['skipped']} 条重复 · "
               f"新建分类 {result['new_categories']} 个 · 新建标签 {result['new_tags']} 个")
         return redirect(url_for("expenses.list"))
-    return render_template("expenses/import.html")
+    return render_template("expenses/import.html", data_years=_data_years())
+
+
+def _data_years():
+    rows = db.session.query(db.func.strftime("%Y", ExpenseRecord.date)).distinct().all()
+    return sorted({int(r[0]) for r in rows}, reverse=True)
+
+
+@bp.route("/clear", methods=["POST"])
+def clear():
+    year = request.form.get("year", type=int)
+    query = ExpenseRecord.query
+    if year:
+        query = query.filter(ExpenseRecord.date >= dt.date(year, 1, 1), ExpenseRecord.date <= dt.date(year, 12, 31))
+    count = query.delete(synchronize_session=False)
+    db.session.commit()
+    flash(f"已清空{f'{year} 年' if year else '全部'} {count} 条记录")
+    return redirect(url_for("expenses.import_file"))
 
 
 @bp.route("/categories", methods=["GET", "POST"])
@@ -242,8 +299,9 @@ def categories():
         if exists:
             flash("同级下已有同名分类")
             return redirect(url_for("expenses.categories"))
+        icon = request.form.get("icon") or guess_icon(name)
         db.session.add(ExpenseCategory(name=name, kind=kind, parent_id=parent.id if parent else None,
-                                       icon=(request.form.get("icon") or None)))
+                                       icon=icon))
         db.session.commit()
         flash("已添加分类")
         return redirect(url_for("expenses.categories"))

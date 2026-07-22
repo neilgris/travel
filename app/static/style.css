@@ -706,7 +706,7 @@ canvas { max-width: 100%; }
   .top-grid { grid-template-columns: 1fr; }
 }
 
-.donut-wrap { position: relative; }
+.donut-wrap { position: relative; height: 240px; }
 .donut-center {
   position: absolute;
   top: 44%;
@@ -722,6 +722,26 @@ canvas { max-width: 100%; }
 .donut-center-value { font-size: 1.25rem; font-weight: 700; color: var(--text); }
 
 .cat-hint { text-align: center; font-size: 0.75rem; margin: 0.4rem 0 0; }
+
+/* 占比细条（分类明细 / 标签榜） */
+.mini-bar { height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; margin-top: 0.3rem; }
+.mini-bar > i { display: block; height: 100%; border-radius: 3px; }
+
+/* 环图 + 分类明细：顶对齐，避免环图卡片被明细拉高留白 */
+.cat-split { display: grid; grid-template-columns: 2fr 3fr; gap: 0.8rem; margin-bottom: 0.8rem; align-items: start; }
+.cat-split > .card { margin-bottom: 0; }
+@media (max-width: 640px) { .cat-split { grid-template-columns: 1fr; } }
+
+/* 逐年明细表（整体统计）：窄屏可横向滚动，数字列右对齐等宽 */
+.table-scroll { overflow-x: auto; }
+.year-table { min-width: 520px; }
+.year-table td.num, .year-table th:not(:first-child) { text-align: right; }
+.year-table td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* 等宽两列（月度：Top榜 + 标签榜） */
+.overview-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-bottom: 0.8rem; align-items: start; }
+.overview-2col > .card { margin-bottom: 0; }
+@media (max-width: 640px) { .overview-2col { grid-template-columns: 1fr; } }
 
 /* 类别明细面板 */
 .cat-detail-card { display: flex; flex-direction: column; }
@@ -1114,8 +1134,9 @@ canvas { max-width: 100%; }
    等分到 165px 的列里会被裁成「￥1,416,487.」。让总花费卡横跨两列；列宽下限
    相应调小（150→130），否则七个格排不进六列会把最后一张卡挤到第二行；
    数字字号也收一档（1.7→1.45rem），让总里程「232,891 km」在窄列里放得下。 */
-.kpi-row-6 { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
-.kpi-row-6 .kpi-value { font-size: 1.45rem; }
+.kpi-row-6 { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.kpi-row-6 .kpi-value { font-size: 1.3rem; }
+.kpi-row-6 .card { padding-left: 0.9rem; padding-right: 0.9rem; }
 .kpi-row-6 .kpi-money { grid-column: span 2; }
 
 .ms-row {
@@ -1245,6 +1266,23 @@ a.ms-card:hover { transform: translateY(-2px); transition: transform .15s; }
 .exp-list-compact .tl-item { padding: .22rem .6rem; }
 .exp-list-compact .tl-title { font-size: .85rem; }
 .exp-list-compact .tl-meta { font-size: .74rem; }
+
+/* 流水行内编辑：点一行原地下拉成表单，替换掉 .tl-item 的横向 flex 布局。
+   所有控件挤进一行 flex-wrap，屏幕不够宽时自然只落到两行，不用单独的两行栅格。 */
+.exp-item-editing { display: block; padding: .5rem .7rem; cursor: default; }
+.exp-inline-row { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+.exp-inline-row input, .exp-inline-row select {
+  width: auto; padding: .3rem .45rem; font-size: .82rem;
+}
+.exp-inline-kind { flex: 0 0 4.2rem; }
+.exp-inline-row input[type="date"] { flex: 0 0 8.6rem; }
+.exp-inline-amount { flex: 0 0 5.2rem; }
+.exp-inline-cat1 { flex: 0 0 6.6rem; }
+.exp-inline-cat2 { flex: 0 0 6.6rem; }
+.exp-inline-tag { flex: 0 0 5.6rem; }
+.exp-inline-note { flex: 1 1 8rem; min-width: 5rem; }
+.exp-inline-row .btn-sm { flex: 0 0 auto; padding: .3rem .7rem; }
+.exp-inline-error { margin: .35rem 0 0; font-size: .8rem; color: var(--accent-dark); }
 
 /* ---- 分类管理：图标框收窄，名称框吃满剩余空间 ----
    用独立类名 exp-cat-edit（而不是复用 .inline-edit）避免和设置页

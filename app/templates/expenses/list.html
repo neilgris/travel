@@ -43,6 +43,7 @@
       <div class="msel" data-label="标签">
         <button type="button" class="msel-toggle">标签</button>
         <div class="msel-panel">
+          <label class="msel-opt"><input type="checkbox" name="tag_id" value="0" {% if 0 in filters.tag_id %}checked{% endif %}> 空</label>
           {% for t in tags %}
           <label class="msel-opt"><input type="checkbox" name="tag_id" value="{{ t.id }}" {% if t.id in filters.tag_id %}checked{% endif %}> {{ t.name }}</label>
           {% endfor %}
@@ -56,11 +57,18 @@
   </div>
 </form>
 
+<datalist id="exp-tag-options">
+  {% for t in tags %}<option value="{{ t.name }}">{% endfor %}
+</datalist>
+
 <div id="exp-results">
 {% include "expenses/_list_results.html" %}
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script>
+const EXP_CATEGORIES = {{ categories_json | safe }};
+</script>
 <script src="{{ url_for('static', filename='expenses-list.js') }}"></script>
 {% endblock %}

@@ -9,7 +9,7 @@ from decimal import Decimal
 import xlrd
 
 from app.extensions import db
-from app.models.expense import ExpenseCategory, ExpenseTag, ExpenseRecord
+from app.models.expense import ExpenseCategory, ExpenseTag, ExpenseRecord, guess_icon
 
 SHEET_KINDS = {"支出": "支出", "收入": "收入"}
 
@@ -60,7 +60,7 @@ def _get_or_create_category(cache, kind, cat1, cat2):
     if top is None:
         top = ExpenseCategory.query.filter_by(kind=kind, parent_id=None, name=cat1).first()
         if top is None:
-            top = ExpenseCategory(kind=kind, parent_id=None, name=cat1)
+            top = ExpenseCategory(kind=kind, parent_id=None, name=cat1, icon=guess_icon(cat1))
             db.session.add(top)
             db.session.flush()
             created += 1
@@ -72,7 +72,7 @@ def _get_or_create_category(cache, kind, cat1, cat2):
     if sub is None:
         sub = ExpenseCategory.query.filter_by(kind=kind, parent_id=top.id, name=cat2).first()
         if sub is None:
-            sub = ExpenseCategory(kind=kind, parent_id=top.id, name=cat2)
+            sub = ExpenseCategory(kind=kind, parent_id=top.id, name=cat2, icon=guess_icon(cat2))
             db.session.add(sub)
             db.session.flush()
             created += 1

@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% import "expenses/_stats_macros.html" as st %}
+{% block title %}整体统计{% endblock %}
+{% block content %}
+{% set palette = st.STATS_PALETTE %}
+<div class="trip-title-nav">
+  <h1>整体统计{% if s.first_date %} · {{ s.first_date.year }}–{{ s.last_date.year }}{% endif %}</h1>
+</div>
+
+{% if s.years %}
+<div class="kpi-row kpi-row-6">
+  {{ st.kpi('累计支出', '￥{:,.2f}'.format(s.total_expense), money=True) }}
+  {{ st.kpi('累计收入', '￥{:,.2f}'.format(s.total_income)) }}
+  {{ st.kpi('累计结余', '￥{:,.2f}'.format(s.balance),
+            sub=('结余率 {:.1f}%'.format(s.savings_rate) if s.savings_rate is not none else None)) }}
+  {{ st.kpi('年均支出', '￥{:,.2f}'.format(s.avg_year_expense)) }}
+  {{ st.kpi('日均支出', '￥{:,.2f}'.format(s.avg_day_expense)) }}
+  {{ st.kpi('支出笔数', s.record_count) }}
+</div>
+
+<div class="ms-row">
+  <div class="card ms-card">
+    <span class="ms-emoji">🗓️</span>
+    <span class="ms-label">记账跨度</span>
+    <span class="ms-value">{{ s.years | length }} 年</span>
+    <span class="ms-sub">{{ s.first_date.isoformat() }} 起</span>
+  </div>
+  {% if s.top_year %}
+  <div class="card ms-card">
+    <span class="ms-emoji">📈</span>
+    <span class="ms-label">消费最高年</span>
+    <span class="ms-value">{{ s.top_year.year }} 年 · ￥{{ '{:,.0f}'.format(s.top_year.expense) }}</span>
+  </div>
+  <div class="card ms-card">
+    <span class="ms-emoji">🍃</span>
+    <span class="ms-label">消费最低年</span>
+    <span class="ms-value">{{ s.low_year.year }} 年 · ￥{{ '{:,.0f}'.format(s.low_year.expense) }}</span>
+  </div>
+  {% endif %}
+  {% if s.max_single %}
+  <div class="card ms-card">
+    <span class="ms-emoji">💸</span>
+    <span class="ms-label">最大单笔支出</span>
+    <span class="ms-value">￥{{ '{:,.2f}'.format(s.max_single.amount) }}</span>
+    <span class="ms-sub">{{ s.max_single.date.isoformat() }} · {{ s.max_single.category.name }}</span>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>逐年支出与收入</h3>
+  <canvas id="yearTrend" height="80"></canvas>
+</div>
+
+<div class="card">
+  <h3>分类构成逐年变化</h3>
+  <canvas id="catStack" height="90"></canvas>
+</div>
+
+<div class="cat-split">
+  {{ st.donut_card('全时段分类占比', 'overviewCatDonut', '累计支出', '￥{:,.0f}'.format(s.total_expense)) }}
+  <div class="card">
+    <h3>一级分类排行</h3>
+    <ol class="top-list">
+      {% for c in s.category_rank %}
+      {% set color = palette[loop.index0 % 8] %}
+      {% call st.top_item(c.total, color, bar_pct=c.pct) %}
+        <span class="top-title">{{ c.icon or '' }} {{ c.category }}</span>
+        <span class="top-meta">占 {{ '{:.1f}'.format(c.pct) }}%</span>
+      {% endcall %}
+      {% endfor %}
+    </ol>
+  </div>
+</div>
+
+<div class="card">
+  <h3>逐年明细</h3>
+  <div class="table-scroll">
+    <table class="year-table">
+      <thead>
+        <tr><th>年份</th><th>支出</th><th>收入</th><th>结余</th><th>结余率</th><th>支出同比</th></tr>
+      </thead>
+      <tbody>
+        {% for r in s.yearly %}
+        <tr>
+          <td>{{ r.year }}</td>
+          <td class="num">￥{{ '{:,.2f}'.format(r.expense) }}</td>
+          <td class="num">￥{{ '{:,.2f}'.format(r.income) }}</td>
+          <td class="num">￥{{ '{:,.2f}'.format(r.balance) }}</td>
+          <td class="num">{% if r.savings_rate is not none %}{{ '{:.1f}'.format(r.savings_rate) }}%{% else %}—{% endif %}</td>
+          <td class="num">
+            {% if r.yoy.pct is not none %}
+            <span style="color: {{ '#e76f51' if r.yoy.pct >= 0 else '#2a9d8f' }}">{{ '{:+.1f}'.format(r.yoy.pct) }}%</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="overview-2col">
+  <div class="card">
+    <h3>二级分类 Top 10</h3>
+    {% if s.subcategory_top %}
+    {% set sub_max = s.subcategory_top[0].total %}
+    <ol class="top-list">
+      {% for c in s.subcategory_top %}
+      {% set color = palette[loop.index0 % 8] %}
+      {% call st.top_item(c.total, color, bar_pct=(c.total / sub_max * 100) if sub_max else 0) %}
+        <span class="top-title">{{ c.parent }} · {{ c.category }}</span>
+      {% endcall %}
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="muted">暂无数据。</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3>标签榜</h3>
+    {% if s.tag_rank %}
+    {% set tag_max = s.tag_rank[0].total %}
+    <ol class="top-list">
+      {% for t in s.tag_rank %}
+      {% call st.top_item(t.total, '#4a9fc9', bar_pct=(t.total / tag_max * 100) if tag_max else 0) %}
+        <span class="top-title">#{{ t.tag }}</span>
+        <span class="top-meta">{{ t.count }} 笔</span>
+      {% endcall %}
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="muted">还没有打标签的记录。</p>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <p class="muted">还没有任何消费记录。</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if s.years %}
+<script src="{{ url_for('static', filename='expenses-stats.js') }}"></script>
+<script>
+const yearData = {{ yearly_json | safe }};
+const stacked = {{ stacked_json | safe }};
+
+// 逐年支出/收入 双折线
+new Chart(document.getElementById('yearTrend'), {
+  type: 'line',
+  data: {
+    labels: yearData.map(y => y.year + '年'),
+    datasets: [
+      { label: '支出', data: yearData.map(y => y.expense), borderColor: '#e76f51', backgroundColor: 'rgba(231,111,81,0.12)', tension: 0.3, fill: true },
+      { label: '收入', data: yearData.map(y => y.income), borderColor: '#2a9d8f', backgroundColor: 'rgba(42,157,143,0.1)', tension: 0.3, fill: true },
+    ],
+  },
+  options: {
+    plugins: {
+      legend: { position: 'bottom' },
+      tooltip: { callbacks: { label: i => ` ${i.dataset.label}  ${expFmt(i.raw)}` } },
+    },
+    scales: {
+      x: { grid: { display: false } },
+      y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('zh-CN') } },
+    },
+  },
+});
+
+// 分类构成逐年变化 堆叠柱
+new Chart(document.getElementById('catStack'), {
+  type: 'bar',
+  data: {
+    labels: stacked.years.map(y => y + '年'),
+    datasets: stacked.series.map((ser, i) => ({
+      label: ser.category,
+      data: ser.data,
+      backgroundColor: EXP_PALETTE[i % EXP_PALETTE.length],
+      borderWidth: 0,
+    })),
+  },
+  options: {
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' } },
+      tooltip: { callbacks: { label: i => ` ${i.dataset.label}  ${expFmt0(i.raw)}` } },
+    },
+    scales: {
+      x: { stacked: true, grid: { display: false } },
+      y: { stacked: true, beginAtZero: true, ticks: { callback: v => v.toLocaleString('zh-CN') } },
+    },
+  },
+});
+
+// 全时段分类占比 环图
+expMakeDonut('overviewCatDonut', {{ cat_json | safe }});
+</script>
+{% endif %}
+{% endblock %}

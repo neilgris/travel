@@ -138,9 +138,12 @@ sha1("kind|date|一级分类|二级分类|金额|商家|备注|同键序号")
 ```
 app/models/expense.py            ExpenseCategory / ExpenseTag / ExpenseRecord + DEFAULT_CATEGORIES
 app/services/expense_import.py   解析两个 sheet → 查建分类/标签 → 指纹去重写入 → 返回统计
-app/services/expense_stats.py    月度、年度、分类聚合、标签榜（纯查询，无 HTTP）
+app/services/expense_stats.py    月度、年度、整体统计聚合 + 共用聚合小工具（一级/二级分类、标签排行；纯查询，无 HTTP）
 app/blueprints/expenses.py       url_prefix=/expenses
-app/templates/expenses/          list / form / monthly / yearly / import / categories .html
+app/templates/expenses/          list / form / monthly / yearly / overview / import / categories .html
+                                 _list_results / _item_row / _inline_edit_form（流水行内编辑片段）
+                                 _stats_macros.html（月/年/总览共用 KPI·环图·排行榜宏）
+app/static/expenses-stats.js     月/年/总览共用图表工具（调色板、金额格式化、环图工厂）
 ```
 
 既有的 `app/services/import_expense.py` 是**旅程专用**的（要匹配 Trip 的 Day 与申报币种），语义不同，本模块另起 `expense_import.py`，不改动它。
@@ -149,31 +152,45 @@ app/templates/expenses/          list / form / monthly / yearly / import / categ
 
 | 路由 | 内容 |
 |---|---|
-| `GET /expenses/` | 流水列表：按月分组 + 吸顶月份标题与当月小计（复用旅程列表的分组样式）；筛选 年月 / 收支 / 一级·二级分类 / 标签 / 备注关键词 |
-| `GET,POST /expenses/new`<br>`GET,POST /expenses/<id>/edit`<br>`POST /expenses/<id>/delete` | 单条增删改：日期、收支、分类（一级联动二级）、金额、标签（单选下拉，可新建）、备注 |
+| `GET /expenses/` | 流水列表：按月分组 + 吸顶月份标题与当月小计（复用旅程列表的分组样式）；筛选 年月 / 收支 / 一级·二级分类 / 标签（含「空」= 筛无标签记录）/ 备注关键词。点击某行原地下拉成表单、异步保存不刷新页面 |
+| `GET,POST /expenses/new`<br>`GET,POST /expenses/<id>/edit`<br>`POST /expenses/<id>/delete` | 单条增删改：日期、收支、分类（一级联动二级）、金额、标签（单选下拉，可新建）、备注。`edit` 带 `X-Requested-With` 时返回行内编辑片段（GET）或更新后的行 JSON（POST），供流水页异步编辑 |
 | `GET /expenses/monthly?ym=YYYY-MM` | 当月仪表盘 |
 | `GET /expenses/yearly?year=YYYY` | 年度分析 |
-| `GET,POST /expenses/import` | 上传 `.xls`，写入后展示结果摘要 |
+| `GET /expenses/overview` | 整体统计：跨全部年份的对比看板 |
+| `GET,POST /expenses/import` | 上传 `.xls`，写入后展示结果摘要；页内含危险操作区：`POST /expenses/clear` 清空全部或按年清空流水 |
 | `GET,POST /expenses/categories` | 分类树增删改排序 + 标签管理 |
 
 ## 7. 统计口径
 
 **月度概览**（`/expenses/monthly`）
 
-- 当月总支出、总收入、结余（= 收入 − 支出）
+- 当月总支出、总收入、结余（= 收入 − 支出）、日均支出（总支出 ÷ 当月天数）
 - 环比：与上月总支出对比（金额差 + 百分比；上月为 0 时不显示百分比）
-- 一级分类占比饼图（仅支出）
+- 一级分类占比环图 + 分类明细榜（各类占比 + 金额，与环图配色一致）
 - 每日支出柱状图（当月每一天，无消费为 0）
 - Top 10 单笔支出
-- 标签 Top（按金额）
+- 标签 Top（按金额，含占比条）
 
 **年度分析**（`/expenses/yearly`）
 
-- 12 个月支出/收入双折线
-- 一级分类年度排行，带同比（与上一年同分类对比；上一年无数据则不显示同比）
-- 二级分类 Top
-- 标签榜（按金额与笔数）
-- 全年总支出/总收入/结余、月均、日均、最大单笔、有消费天数
+- 12 个月支出/收入双折线（当年未过完时只画到当前月，避免曲线砸到 0）
+- 一级分类占比环图 + 年度排行榜（各类占比 + 金额 + 同比涨跌上色；与上一年同分类对比，上一年无数据则不显示同比）
+- 二级分类 Top（含占比条）
+- 标签榜（按金额与笔数，含占比条）
+- 全年总支出（带同比）/总收入/结余（带结余率）/月均/日均/支出笔数
+- 洞察条：消费最高月 / 最低月 / 最大单笔 / 有消费天数
+- 月均、日均口径：完整过去年份按 12 月 / 当年实际天数（含闰年）；当年按已过月份 / 已过天数，避免被稀释
+
+**整体统计**（`/expenses/overview`）——跨全部年份的对比看板
+
+- 累计 KPI：累计支出/收入/结余（带结余率）/年均支出/日均支出/支出笔数
+- 洞察条：记账跨度 / 消费最高年 / 最低年 / 最大单笔
+- 逐年支出与收入双折线
+- ⭐ 分类构成逐年变化：堆叠柱状图，每年一柱、柱内按一级分类分段；单独上色上限 7 类，其余并入「其他」段
+- 全时段分类占比环图 + 一级分类排行榜
+- 逐年明细表：年份 / 支出 / 收入 / 结余 / 结余率 / 支出同比（涨红降绿）
+- 二级分类 Top 10 + 标签榜（全时段）
+- 口径：年均 = 累计支出 ÷ 有支出的年数；结余率 = 累计结余 ÷ 累计收入；年份区间按首末记录连续填满
 
 金额一律 `Decimal`，两位四舍五入，仅人民币。
 
@@ -182,7 +199,7 @@ app/templates/expenses/          list / form / monthly / yearly / import / categ
 `base.html` 顶栏左侧改为两个模块入口，当前模块高亮；右侧子菜单按 `request.blueprint` 切换：
 
 - **旅行记录**：旅程 / 足迹 / 创建 / 设置
-- **日常消费**：流水 / 月度 / 年度 / 导入 / 分类
+- **日常消费**：流水 / 月度 / 年度 / 总览 / 导入 / 分类
 
 ## 9. 测试
 
@@ -191,7 +208,7 @@ TDD，`tests/` 与模块一一对应：
 - `tests/test_expense_models.py`——两级约束、删除策略、唯一约束
 - `tests/test_expense_import.py`——列映射、日期截断、分类/标签自动建、指纹去重（重复导入零新增）
 - `tests/test_expense_stats.py`——月度/年度各项口径、环比同比边界（除零、无上期数据）
-- `tests/test_expenses_blueprint.py`——列表筛选、增删改、导入流程
+- `tests/test_expenses_blueprint.py`——列表筛选（含空标签）、增删改（含行内异步编辑）、清空全部/按年、导入流程
 
 ## 10. 数据库
 

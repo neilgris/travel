@@ -48,6 +48,122 @@
 
   wireGroups(); // 首屏（服务端整页渲染）的月份分组也要接上折叠/展开逻辑
 
+  // 点一行流水，原地下拉成编辑表单，保存/取消都不刷新页面。
+  // EXP_CATEGORIES 由 list.html 内联注入（一级+二级分类树，含图标）。
+  function renderInlineCat1(form) {
+    var kindSel = form.querySelector('.exp-inline-kind');
+    var cat1Sel = form.querySelector('.exp-inline-cat1');
+    var kind = kindSel.value;
+    cat1Sel.innerHTML = '';
+    (typeof EXP_CATEGORIES !== 'undefined' ? EXP_CATEGORIES : []).filter(function (c) {
+      return c.kind === kind;
+    }).forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c.id; opt.textContent = (c.icon || '') + ' ' + c.name;
+      cat1Sel.appendChild(opt);
+    });
+    if (kind === form.dataset.curKind && form.dataset.curCat1) cat1Sel.value = form.dataset.curCat1;
+    renderInlineCat2(form);
+  }
+
+  function renderInlineCat2(form) {
+    var kindSel = form.querySelector('.exp-inline-kind');
+    var cat1Sel = form.querySelector('.exp-inline-cat1');
+    var cat2Sel = form.querySelector('.exp-inline-cat2');
+    var top = (typeof EXP_CATEGORIES !== 'undefined' ? EXP_CATEGORIES : []).find(function (c) {
+      return String(c.id) === cat1Sel.value;
+    });
+    cat2Sel.innerHTML = '';
+    if (top) {
+      var self = document.createElement('option');
+      self.value = top.id; self.textContent = '（不细分）';
+      cat2Sel.appendChild(self);
+      top.children.forEach(function (sub) {
+        var opt = document.createElement('option');
+        opt.value = sub.id; opt.textContent = (sub.icon ? sub.icon + ' ' : '') + sub.name;
+        cat2Sel.appendChild(opt);
+      });
+    }
+    if (kindSel.value === form.dataset.curKind && form.dataset.curCat2) cat2Sel.value = form.dataset.curCat2;
+  }
+
+  function openInlineEdit(li) {
+    var trigger = li.querySelector('.tl-main');
+    if (!trigger) return;
+    fetch(trigger.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        var tpl = document.createElement('template');
+        tpl.innerHTML = html.trim();
+        var formLi = tpl.content.firstElementChild;
+        formLi._originalLi = li;
+        li.replaceWith(formLi);
+        renderInlineCat1(formLi.querySelector('.exp-inline-form'));
+      });
+  }
+
+  function closeInlineEdit(formLi) {
+    if (formLi._originalLi) formLi.replaceWith(formLi._originalLi);
+  }
+
+  function submitInlineEdit(form) {
+    var formLi = form.closest('.exp-item-editing');
+    var errorEl = form.querySelector('.exp-inline-error');
+    errorEl.hidden = true;
+    var submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    fetch(form.dataset.editUrl, {
+      method: 'POST', body: new FormData(form),
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) {
+          var tpl = document.createElement('template');
+          tpl.innerHTML = data.html.trim();
+          formLi.replaceWith(tpl.content.firstElementChild);
+        } else {
+          errorEl.textContent = data.error || '保存失败';
+          errorEl.hidden = false;
+          submitBtn.disabled = false;
+        }
+      })
+      .catch(function () {
+        errorEl.textContent = '网络错误，请重试';
+        errorEl.hidden = false;
+        submitBtn.disabled = false;
+      });
+  }
+
+  results.addEventListener('click', function (e) {
+    var cancelBtn = e.target.closest('[data-cancel]');
+    if (cancelBtn) {
+      closeInlineEdit(cancelBtn.closest('.exp-item-editing'));
+      return;
+    }
+    var trigger = e.target.closest('.tl-main');
+    if (!trigger) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // 允许新标签页打开等默认行为
+    var li = trigger.closest('.exp-item');
+    if (!li || li.classList.contains('exp-item-editing')) return;
+    e.preventDefault();
+    openInlineEdit(li);
+  });
+
+  results.addEventListener('change', function (e) {
+    var form = e.target.closest('.exp-inline-form');
+    if (!form) return;
+    if (e.target.classList.contains('exp-inline-kind')) renderInlineCat1(form);
+    else if (e.target.classList.contains('exp-inline-cat1')) renderInlineCat2(form);
+  });
+
+  results.addEventListener('submit', function (e) {
+    var form = e.target.closest('.exp-inline-form');
+    if (!form) return;
+    e.preventDefault();
+    submitInlineEdit(form);
+  });
+
   function updateMselSummary(msel) {
     var toggle = msel.querySelector('.msel-toggle');
     var label = msel.dataset.label;

@@ -8,4 +8,22 @@
   <input type="file" name="file" accept=".xls" required>
   <button class="btn" type="submit" style="margin-top: 0.6rem">上传并导入</button>
 </form>
+
+<div class="card" style="border-color: #e76f51">
+  <h3 style="color: #e76f51">危险操作</h3>
+  <p class="muted">清空后记录无法恢复，请谨慎操作。</p>
+  <form method="post" action="{{ url_for('expenses.clear') }}" class="form-row"
+        onsubmit="return confirm('确定清空所选范围内的日常消费记录？此操作不可恢复！');">
+    <div class="field">
+      <label>清空范围</label>
+      <select name="year">
+        <option value="">全部年份</option>
+        {% for y in data_years %}
+        <option value="{{ y }}">仅 {{ y }} 年</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-danger" type="submit" style="align-self: flex-end">清空</button>
+  </form>
+</div>
 {% endblock %}
