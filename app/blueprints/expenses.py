@@ -3,6 +3,7 @@
 """
 import datetime as dt
 from decimal import Decimal, InvalidOperation
+from itertools import groupby
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
 from sqlalchemy import or_
@@ -40,6 +41,25 @@ def _category_tree_json():
         "id": top.id, "name": top.name, "kind": top.kind, "icon": top.icon,
         "children": [{"id": sub.id, "name": sub.name, "icon": sub.icon} for sub in top.children],
     } for top in _category_tree()])
+
+
+def _rec_json(r):
+    return {"date": r["date"].isoformat(), "note": r["note"], "category": r["category"],
+            "tag": r["tag"], "amount": float(r["amount"])}
+
+
+def _board_json(board):
+    """一级/二级/标签榜（同构：排行项 + 单笔 records）→ 内联 JSON。
+    Decimal→float、date→iso；yoy 拍平成 yoy_pct，其余标量字段（name/parent/icon/count/tag）原样带过。"""
+    out = []
+    for b in board:
+        node = {k: (float(v) if isinstance(v, Decimal) else v)
+                for k, v in b.items() if k not in ("records", "yoy")}
+        node["records"] = [_rec_json(r) for r in b["records"]]
+        if "yoy" in b:
+            node["yoy_pct"] = float(b["yoy"]["pct"]) if b["yoy"]["pct"] is not None else None
+        out.append(node)
+    return out
 
 
 def _recent_years(n=10):
@@ -212,11 +232,19 @@ def monthly():
     s = monthly_stats(year, month)
     prev = (dt.date(year, month, 1) - dt.timedelta(days=1))
     nxt_month_first = (dt.date(year, 12, 31) + dt.timedelta(days=1)) if month == 12 else dt.date(year, month + 1, 1)
+    # 下拉可选年月：有流水的月份 + 当前所看月 + 本月，按年分组、倒序
+    # 注意：本模块的 list 名被视图函数 list() 遮住，这里用 [*ms] 而非 list(ms)
+    months = sorted(_data_months() | {ym, f"{today.year}-{today.month:02d}"}, reverse=True)
+    month_groups = [(yr, [*ms]) for yr, ms in groupby(months, key=lambda m: m[:4])]
     return render_template("expenses/monthly.html", s=s, ym=ym,
                            prev_ym=f"{prev.year}-{prev.month:02d}",
                            next_ym=f"{nxt_month_first.year}-{nxt_month_first.month:02d}",
+                           month_groups=month_groups,
                            cat_json=safe_json([{"category": c["category"], "total": float(c["total"])}
                                                for c in s["by_category"]]),
+                           cat1_json=safe_json(_board_json(s["cat1_board"])),
+                           cat2_json=safe_json(_board_json(s["cat2_board"])),
+                           tag_drill_json=safe_json(_board_json(s["tag_drill"])),
                            daily_json=safe_json([{"date": d["date"].isoformat(), "total": float(d["total"])}
                                                  for d in s["daily"]]))
 
@@ -226,11 +254,17 @@ def yearly():
     year = request.args.get("year", type=int) or dt.date.today().year
     s = yearly_stats(year)
     cur_month = dt.date.today().month if year == dt.date.today().year else 12
+    # 下拉可选年份：有流水的年 + 当前所看年 + 今年，倒序
+    year_options = sorted(set(_data_years()) | {year, dt.date.today().year}, reverse=True)
     return render_template("expenses/yearly.html", s=s, year=year, cur_month=cur_month,
+                           year_options=year_options,
                            monthly_json=safe_json([{"month": m["month"], "expense": float(m["expense"]),
                                                     "income": float(m["income"])} for m in s["monthly"]]),
                            cat_json=safe_json([{"category": c["category"], "total": float(c["total"])}
-                                               for c in s["category_rank"]]))
+                                               for c in s["category_rank"]]),
+                           cat1_json=safe_json(_board_json(s["cat1_board"])),
+                           cat2_json=safe_json(_board_json(s["cat2_board"])),
+                           tag_drill_json=safe_json(_board_json(s["tag_drill"])))
 
 
 @bp.route("/overview")
@@ -246,7 +280,10 @@ def overview():
     cat_json = safe_json([{"category": c["category"], "total": float(c["total"])}
                           for c in s["category_rank"]])
     return render_template("expenses/overview.html", s=s,
-                           yearly_json=yearly_json, stacked_json=stacked_json, cat_json=cat_json)
+                           yearly_json=yearly_json, stacked_json=stacked_json, cat_json=cat_json,
+                           cat1_json=safe_json(_board_json(s["cat1_board"])),
+                           cat2_json=safe_json(_board_json(s["cat2_board"])),
+                           tag_drill_json=safe_json(_board_json(s["tag_drill"])))
 
 
 @bp.route("/import", methods=["GET", "POST"])
@@ -267,6 +304,12 @@ def import_file():
 def _data_years():
     rows = db.session.query(db.func.strftime("%Y", ExpenseRecord.date)).distinct().all()
     return sorted({int(r[0]) for r in rows}, reverse=True)
+
+
+def _data_months():
+    """有流水的年月集合，形如 {'2025-11', ...}。给月度页下拉用。"""
+    rows = db.session.query(db.func.strftime("%Y-%m", ExpenseRecord.date)).distinct().all()
+    return {r[0] for r in rows}
 
 
 @bp.route("/clear", methods=["POST"])

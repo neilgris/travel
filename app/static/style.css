@@ -727,21 +727,11 @@ canvas { max-width: 100%; }
 .mini-bar { height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; margin-top: 0.3rem; }
 .mini-bar > i { display: block; height: 100%; border-radius: 3px; }
 
-/* 环图 + 分类明细：顶对齐，避免环图卡片被明细拉高留白 */
-.cat-split { display: grid; grid-template-columns: 2fr 3fr; gap: 0.8rem; margin-bottom: 0.8rem; align-items: start; }
-.cat-split > .card { margin-bottom: 0; }
-@media (max-width: 640px) { .cat-split { grid-template-columns: 1fr; } }
-
 /* 逐年明细表（整体统计）：窄屏可横向滚动，数字列右对齐等宽 */
 .table-scroll { overflow-x: auto; }
 .year-table { min-width: 520px; }
 .year-table td.num, .year-table th:not(:first-child) { text-align: right; }
 .year-table td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-
-/* 等宽两列（月度：Top榜 + 标签榜） */
-.overview-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-bottom: 0.8rem; align-items: start; }
-.overview-2col > .card { margin-bottom: 0; }
-@media (max-width: 640px) { .overview-2col { grid-template-columns: 1fr; } }
 
 /* 类别明细面板 */
 .cat-detail-card { display: flex; flex-direction: column; }
@@ -792,6 +782,40 @@ canvas { max-width: 100%; }
 }
 .top-meta { font-size: 0.78rem; color: var(--muted); }
 .top-amount { font-weight: 700; color: var(--accent-dark); white-space: nowrap; }
+
+/* ===== 分类明细：占比环图（顶部居中）+ 三栏 Miller 列，向右逐级展开 ===== */
+.drill-hint {
+  font-size: 0.72rem; font-weight: 400; color: var(--muted);
+  margin-left: 0.5rem; vertical-align: middle;
+}
+.cat-detail-donut { max-width: 260px; margin: 0 auto 1rem; }
+
+/* 两栏：排行固定常驻在左，单笔向右铺开；窄屏整体横向滚动，不挤压页面 */
+.cat-miller { display: flex; gap: 1rem; overflow-x: auto; }
+.cat-col { list-style: none; margin: 0; padding: 0; min-width: 0; }
+.cat-col--l1 { flex: 0 0 clamp(220px, 30%, 320px); }
+.cat-col--l3 { flex: 1 1 260px; min-width: 240px; }
+.cat-col + .cat-col { border-left: 1px solid var(--border); padding-left: 1rem; }
+
+.cat-item {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.5rem 0.3rem; border-bottom: 1px solid var(--border);
+  border-radius: 6px; transition: background 0.15s;
+}
+.cat-item:last-child { border-bottom: none; }
+.cat-item--click { cursor: pointer; }
+.cat-item--click:hover { background: var(--bg); }
+.cat-item--active { background: var(--bg); box-shadow: inset 2px 0 0 var(--accent-dark); }
+/* 标题独占一行、金额落副行右侧：窄栏里七位数金额才不会把标题挤没 */
+.cat-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.cat-item-head { display: flex; align-items: center; gap: 0.4rem; }
+.cat-item-head .top-title { flex: 1; min-width: 0; }
+.cat-item-sub { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+.cat-item-sub .top-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-item-sub .top-amount { flex: 0 0 auto; }
+.cat-caret { flex: 0 0 auto; color: var(--muted); font-size: 1.05rem; line-height: 1; }
+.cat-item--active .cat-caret { color: var(--accent-dark); }
+.cat-empty { color: var(--muted); font-size: 0.85rem; padding: 0.8rem 0.3rem; }
 
 .muted { color: var(--muted); }
 

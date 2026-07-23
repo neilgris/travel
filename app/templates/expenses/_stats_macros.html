@@ -12,16 +12,13 @@
 </div>
 {% endmacro %}
 
-{# 甜甜圈占比卡片：中心叠一个合计。canvas_id 交给页面脚本用 expMakeDonut 挂图。 #}
-{% macro donut_card(title, canvas_id, center_label, center_value) %}
-<div class="card">
-  <h3>{{ title }}</h3>
-  <div class="donut-wrap">
-    <canvas id="{{ canvas_id }}"></canvas>
-    <div class="donut-center">
-      <span class="donut-center-label">{{ center_label }}</span>
-      <span class="donut-center-value">{{ center_value }}</span>
-    </div>
+{# 甜甜圈本体（无卡片外壳）：环 + 中心合计。canvas_id 交给页面脚本用 expMakeDonut 挂图。 #}
+{% macro donut_body(canvas_id, center_label, center_value) %}
+<div class="donut-wrap">
+  <canvas id="{{ canvas_id }}"></canvas>
+  <div class="donut-center">
+    <span class="donut-center-label">{{ center_label }}</span>
+    <span class="donut-center-value">{{ center_value }}</span>
   </div>
 </div>
 {% endmacro %}

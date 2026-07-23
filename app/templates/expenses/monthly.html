@@ -2,11 +2,21 @@
 {% import "expenses/_stats_macros.html" as st %}
 {% block title %}{{ s.year }}-{{ '%02d' % s.month }} 月度概览{% endblock %}
 {% block content %}
-{% set palette = st.STATS_PALETTE %}
 <div class="trip-title-nav">
   <a class="title-nav-arrow" href="{{ url_for('expenses.monthly', ym=prev_ym) }}">←</a>
   <h1>{{ s.year }} 年 {{ s.month }} 月</h1>
   <a class="title-nav-arrow" href="{{ url_for('expenses.monthly', ym=next_ym) }}">→</a>
+  <select class="title-nav-select" aria-label="跳转到其它月份"
+          onchange="if (this.value) location.href = this.value;">
+    {% for yr, months in month_groups %}
+    <optgroup label="{{ yr }} 年">
+      {% for m in months %}
+      <option value="{{ url_for('expenses.monthly', ym=m) }}"
+              {% if m == ym %}selected{% endif %}>{{ yr }} 年 {{ m[5:] | int }} 月</option>
+      {% endfor %}
+    </optgroup>
+    {% endfor %}
+  </select>
 </div>
 
 <div class="kpi-row">
@@ -24,64 +34,45 @@
 </div>
 
 {% if s.by_category %}
-<div class="cat-split">
-  {{ st.donut_card('分类占比', 'catDonut', '支出', '￥{:,.2f}'.format(s.total_expense)) }}
-  <div class="card">
-    <h3>分类明细</h3>
-    <ol class="top-list">
-      {% for c in s.by_category %}
-      {% set color = palette[loop.index0 % 8] %}
-      {% call st.top_item(c.total, color, bar_pct=c.pct) %}
-        <span class="top-title">{{ c.icon or '' }} {{ c.category }}</span>
-        <span class="top-meta">占 {{ '{:.1f}'.format(c.pct) }}%</span>
-      {% endcall %}
-      {% endfor %}
-    </ol>
+<div class="card">
+  <h3>一级分类榜<span class="drill-hint">点分类看单笔</span></h3>
+  <div class="cat-detail-donut">
+    {{ st.donut_body('catDonut', '支出', '￥{:,.0f}'.format(s.total_expense)) }}
   </div>
+  <div id="monthCat1"></div>
+</div>
+
+<div class="card">
+  <h3>二级分类榜<span class="drill-hint">点分类看单笔</span></h3>
+  <div id="monthCat2"></div>
+</div>
+
+<div class="card">
+  <h3>标签榜<span class="drill-hint">点标签看单笔</span></h3>
+  <div id="monthTagDrill"></div>
 </div>
 
 <div class="card">
   <h3>每日支出</h3>
   <canvas id="dailyBar" height="80"></canvas>
 </div>
+
+<div class="card">
+  <h3>Top 10 单笔支出</h3>
+  <ol class="top-list">
+    {% for r in s.top_records %}
+    {% call st.top_item(r.amount, '#e76f51') %}
+      <span class="top-title">{{ r.category.display_icon or '' }} {{ r.note or r.category.name }}</span>
+      <span class="top-meta">{{ r.date.isoformat() }} · {{ r.category.name }}{% if r.tag %} · #{{ r.tag.name }}{% endif %}</span>
+    {% endcall %}
+    {% endfor %}
+  </ol>
+</div>
 {% else %}
 <div class="card">
   <p class="muted">本月还没有消费记录。</p>
 </div>
 {% endif %}
-
-<div class="overview-2col">
-  <div class="card">
-    <h3>Top 10 单笔支出</h3>
-    {% if s.top_records %}
-    <ol class="top-list">
-      {% for r in s.top_records %}
-      {% call st.top_item(r.amount, '#e76f51') %}
-        <span class="top-title">{{ r.category.display_icon or '' }} {{ r.note or r.category.name }}</span>
-        <span class="top-meta">{{ r.date.isoformat() }} · {{ r.category.name }}{% if r.tag %} · #{{ r.tag.name }}{% endif %}</span>
-      {% endcall %}
-      {% endfor %}
-    </ol>
-    {% else %}
-    <p class="muted">本月还没有支出记录。</p>
-    {% endif %}
-  </div>
-  <div class="card">
-    <h3>标签榜</h3>
-    {% if s.tag_top %}
-    {% set tag_max = s.tag_top[0].total %}
-    <ol class="top-list">
-      {% for t in s.tag_top %}
-      {% call st.top_item(t.total, '#4a9fc9', bar_pct=(t.total / tag_max * 100) if tag_max else 0) %}
-        <span class="top-title">#{{ t.tag }}</span>
-      {% endcall %}
-      {% endfor %}
-    </ol>
-    {% else %}
-    <p class="muted">本月记录都没打标签。</p>
-    {% endif %}
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -93,6 +84,9 @@ const dailyData = {{ daily_json | safe }};
 const curMonth = {{ s.month }};
 
 expMakeDonut('catDonut', catData);
+expBoard('monthCat1', {{ cat1_json | safe }}, expFmtCat1);
+expBoard('monthCat2', {{ cat2_json | safe }}, expFmtCat2);
+expBoard('monthTagDrill', {{ tag_drill_json | safe }}, expFmtTag);
 
 new Chart(document.getElementById('dailyBar'), {
   type: 'bar',

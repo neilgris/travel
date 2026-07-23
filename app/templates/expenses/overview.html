@@ -2,7 +2,6 @@
 {% import "expenses/_stats_macros.html" as st %}
 {% block title %}整体统计{% endblock %}
 {% block content %}
-{% set palette = st.STATS_PALETTE %}
 <div class="trip-title-nav">
   <h1>整体统计{% if s.first_date %} · {{ s.first_date.year }}–{{ s.last_date.year }}{% endif %}</h1>
 </div>
@@ -57,20 +56,22 @@
   <canvas id="catStack" height="90"></canvas>
 </div>
 
-<div class="cat-split">
-  {{ st.donut_card('全时段分类占比', 'overviewCatDonut', '累计支出', '￥{:,.0f}'.format(s.total_expense)) }}
-  <div class="card">
-    <h3>一级分类排行</h3>
-    <ol class="top-list">
-      {% for c in s.category_rank %}
-      {% set color = palette[loop.index0 % 8] %}
-      {% call st.top_item(c.total, color, bar_pct=c.pct) %}
-        <span class="top-title">{{ c.icon or '' }} {{ c.category }}</span>
-        <span class="top-meta">占 {{ '{:.1f}'.format(c.pct) }}%</span>
-      {% endcall %}
-      {% endfor %}
-    </ol>
+<div class="card">
+  <h3>一级分类榜<span class="drill-hint">点分类看单笔</span></h3>
+  <div class="cat-detail-donut">
+    {{ st.donut_body('overviewCatDonut', '累计支出', '￥{:,.0f}'.format(s.total_expense)) }}
   </div>
+  <div id="overviewCat1"></div>
+</div>
+
+<div class="card">
+  <h3>二级分类榜<span class="drill-hint">点分类看单笔</span></h3>
+  <div id="overviewCat2"></div>
+</div>
+
+<div class="card">
+  <h3>标签榜<span class="drill-hint">点标签看单笔</span></h3>
+  <div id="overviewTagDrill"></div>
 </div>
 
 <div class="card">
@@ -97,41 +98,6 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
-</div>
-
-<div class="overview-2col">
-  <div class="card">
-    <h3>二级分类 Top 10</h3>
-    {% if s.subcategory_top %}
-    {% set sub_max = s.subcategory_top[0].total %}
-    <ol class="top-list">
-      {% for c in s.subcategory_top %}
-      {% set color = palette[loop.index0 % 8] %}
-      {% call st.top_item(c.total, color, bar_pct=(c.total / sub_max * 100) if sub_max else 0) %}
-        <span class="top-title">{{ c.parent }} · {{ c.category }}</span>
-      {% endcall %}
-      {% endfor %}
-    </ol>
-    {% else %}
-    <p class="muted">暂无数据。</p>
-    {% endif %}
-  </div>
-  <div class="card">
-    <h3>标签榜</h3>
-    {% if s.tag_rank %}
-    {% set tag_max = s.tag_rank[0].total %}
-    <ol class="top-list">
-      {% for t in s.tag_rank %}
-      {% call st.top_item(t.total, '#4a9fc9', bar_pct=(t.total / tag_max * 100) if tag_max else 0) %}
-        <span class="top-title">#{{ t.tag }}</span>
-        <span class="top-meta">{{ t.count }} 笔</span>
-      {% endcall %}
-      {% endfor %}
-    </ol>
-    {% else %}
-    <p class="muted">还没有打标签的记录。</p>
-    {% endif %}
   </div>
 </div>
 {% else %}
@@ -196,6 +162,11 @@ new Chart(document.getElementById('catStack'), {
 
 // 全时段分类占比 环图
 expMakeDonut('overviewCatDonut', {{ cat_json | safe }});
+
+// 一级/二级/标签 三榜
+expBoard('overviewCat1', {{ cat1_json | safe }}, expFmtCat1);
+expBoard('overviewCat2', {{ cat2_json | safe }}, expFmtCat2);
+expBoard('overviewTagDrill', {{ tag_drill_json | safe }}, expFmtTag);
 </script>
 {% endif %}
 {% endblock %}

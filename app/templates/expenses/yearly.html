@@ -2,11 +2,17 @@
 {% import "expenses/_stats_macros.html" as st %}
 {% block title %}{{ year }} 年度分析{% endblock %}
 {% block content %}
-{% set palette = st.STATS_PALETTE %}
 <div class="trip-title-nav">
   <a class="title-nav-arrow" href="{{ url_for('expenses.yearly', year=year - 1) }}">←</a>
   <h1>{{ year }} 年度</h1>
   <a class="title-nav-arrow" href="{{ url_for('expenses.yearly', year=year + 1) }}">→</a>
+  <select class="title-nav-select" aria-label="跳转到其它年份"
+          onchange="if (this.value) location.href = this.value;">
+    {% for y in year_options %}
+    <option value="{{ url_for('expenses.yearly', year=y) }}"
+            {% if y == year %}selected{% endif %}>{{ y }} 年</option>
+    {% endfor %}
+  </select>
 </div>
 
 <div class="kpi-row kpi-row-6">
@@ -60,60 +66,22 @@
 </div>
 
 {% if s.category_rank %}
-<div class="cat-split">
-  {{ st.donut_card('分类占比', 'yearCatDonut', '全年支出', '￥{:,.2f}'.format(s.total_expense)) }}
-  <div class="card">
-    <h3>一级分类排行</h3>
-    <ol class="top-list">
-      {% for c in s.category_rank %}
-      {% set color = palette[loop.index0 % 8] %}
-      {% call st.top_item(c.total, color, bar_pct=c.pct) %}
-        <span class="top-title">{{ c.icon or '' }} {{ c.category }}</span>
-        <span class="top-meta">
-          占 {{ '{:.1f}'.format(c.pct) }}%
-          {% if c.yoy.pct is not none %}
-          · <span style="color: {{ '#e76f51' if c.yoy.pct >= 0 else '#2a9d8f' }}">同比{{ '{:+.1f}'.format(c.yoy.pct) }}%</span>
-          {% endif %}
-        </span>
-      {% endcall %}
-      {% endfor %}
-    </ol>
+<div class="card">
+  <h3>一级分类榜<span class="drill-hint">点分类看单笔</span></h3>
+  <div class="cat-detail-donut">
+    {{ st.donut_body('yearCatDonut', '全年支出', '￥{:,.0f}'.format(s.total_expense)) }}
   </div>
+  <div id="yearCat1"></div>
 </div>
 
-<div class="overview-2col">
-  <div class="card">
-    <h3>二级分类 Top 10</h3>
-    {% if s.subcategory_top %}
-    {% set sub_max = s.subcategory_top[0].total %}
-    <ol class="top-list">
-      {% for c in s.subcategory_top %}
-      {% set color = palette[loop.index0 % 8] %}
-      {% call st.top_item(c.total, color, bar_pct=(c.total / sub_max * 100) if sub_max else 0) %}
-        <span class="top-title">{{ c.parent }} · {{ c.category }}</span>
-      {% endcall %}
-      {% endfor %}
-    </ol>
-    {% else %}
-    <p class="muted">暂无数据。</p>
-    {% endif %}
-  </div>
-  <div class="card">
-    <h3>标签榜</h3>
-    {% if s.tag_rank %}
-    {% set tag_max = s.tag_rank[0].total %}
-    <ol class="top-list">
-      {% for t in s.tag_rank %}
-      {% call st.top_item(t.total, '#4a9fc9', bar_pct=(t.total / tag_max * 100) if tag_max else 0) %}
-        <span class="top-title">#{{ t.tag }}</span>
-        <span class="top-meta">{{ t.count }} 笔</span>
-      {% endcall %}
-      {% endfor %}
-    </ol>
-    {% else %}
-    <p class="muted">今年记录都没打标签。</p>
-    {% endif %}
-  </div>
+<div class="card">
+  <h3>二级分类榜<span class="drill-hint">点分类看单笔</span></h3>
+  <div id="yearCat2"></div>
+</div>
+
+<div class="card">
+  <h3>标签榜<span class="drill-hint">点标签看单笔</span></h3>
+  <div id="yearTagDrill"></div>
 </div>
 {% else %}
 <div class="card">
@@ -153,6 +121,9 @@ new Chart(document.getElementById('monthlyLine'), {
 
 {% if s.category_rank %}
 expMakeDonut('yearCatDonut', {{ cat_json | safe }});
+expBoard('yearCat1', {{ cat1_json | safe }}, expFmtCat1);
+expBoard('yearCat2', {{ cat2_json | safe }}, expFmtCat2);
 {% endif %}
+expBoard('yearTagDrill', {{ tag_drill_json | safe }}, expFmtTag);
 </script>
 {% endblock %}

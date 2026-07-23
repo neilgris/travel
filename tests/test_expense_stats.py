@@ -49,7 +49,9 @@ def test_monthly_stats_totals_and_category_breakdown(app):
         assert june_1["total"] == Decimal("30.00")
         assert len(s["daily"]) == 30
 
-        assert s["tag_top"] == [{"tag": "超市", "total": Decimal("50.00")}]
+        assert [t["tag"] for t in s["tag_drill"]] == ["超市"]
+        assert s["tag_drill"][0]["total"] == Decimal("50.00")
+        assert s["tag_drill"][0]["count"] == 1
         assert len(s["top_records"]) == 2
 
 
@@ -61,6 +63,76 @@ def test_monthly_stats_no_previous_month_has_no_pct(app):
         s = monthly_stats(2025, 1)
         assert s["mom"]["pct"] is None
         assert s["mom"]["diff"] == Decimal("20.00")
+
+
+def test_category_level1_board_ranks_with_top_records(app):
+    with app.app_context():
+        food = _cat("支出", "食品酒水")
+        lunch = _cat("支出", "午餐", food)
+        dinner = _cat("支出", "晚餐", food)
+        shop = _cat("支出", "买买买买")
+        _record("支出", dt.date(2025, 6, 1), lunch, "30.00")
+        _record("支出", dt.date(2025, 6, 2), lunch, "80.00")
+        _record("支出", dt.date(2025, 6, 3), dinner, "50.00")
+        _record("支出", dt.date(2025, 6, 4), shop, "40.00")
+
+        board = monthly_stats(2025, 6)["cat1_board"]
+        # 一级：食品酒水 160 在前，买买买买 40 在后
+        assert [c["name"] for c in board] == ["食品酒水", "买买买买"]
+        assert board[0]["total"] == Decimal("160.00")
+        assert board[0]["pct"] == Decimal("80.00")  # 160/200
+        # 名下单笔跨其所有二级，按金额降序
+        assert [r["amount"] for r in board[0]["records"]] == [Decimal("80.00"), Decimal("50.00"), Decimal("30.00")]
+
+
+def test_category_level2_board_sorts_all_subcategories_globally(app):
+    with app.app_context():
+        food = _cat("支出", "食品酒水")
+        lunch = _cat("支出", "午餐", food)
+        shop = _cat("支出", "买买买买")
+        market = _cat("支出", "超市", shop)
+        misc = _cat("支出", "其他杂项")  # 直接挂一级、无二级 → 不入二级榜
+        _record("支出", dt.date(2025, 6, 1), lunch, "30.00")
+        _record("支出", dt.date(2025, 6, 2), market, "70.00")
+        _record("支出", dt.date(2025, 6, 3), lunch, "20.00")
+        _record("支出", dt.date(2025, 6, 4), misc, "99.00")
+
+        board = monthly_stats(2025, 6)["cat2_board"]
+        assert [b["name"] for b in board] == ["超市", "午餐"]  # 70 > 50
+        assert board[0]["parent"] == "买买买买"
+        assert board[0]["total"] == Decimal("70.00")
+        assert board[0]["pct"] == Decimal("31.96")  # 70/219（分母 = 全部支出，含未细分的 99）
+        assert [r["amount"] for r in board[1]["records"]] == [Decimal("30.00"), Decimal("20.00")]
+
+
+def test_tag_drilldown_ranks_all_tags_with_top_records(app):
+    with app.app_context():
+        food = _cat("支出", "食品酒水")
+        lunch = _cat("支出", "午餐", food)
+        t_super = ExpenseTag(name="超市")
+        t_coffee = ExpenseTag(name="咖啡")
+        db.session.add_all([t_super, t_coffee])
+        db.session.commit()
+        _record("支出", dt.date(2025, 6, 1), lunch, "30.00", tag=t_super)
+        _record("支出", dt.date(2025, 6, 2), lunch, "80.00", tag=t_super)
+        _record("支出", dt.date(2025, 6, 3), lunch, "50.00", tag=t_coffee)
+        _record("支出", dt.date(2025, 6, 4), lunch, "20.00")  # 无标签，跳过
+
+        drill = monthly_stats(2025, 6)["tag_drill"]
+        assert [t["tag"] for t in drill] == ["超市", "咖啡"]  # 110 > 50
+        assert drill[0]["total"] == Decimal("110.00")
+        assert drill[0]["count"] == 2
+        assert [r["amount"] for r in drill[0]["records"]] == [Decimal("80.00"), Decimal("30.00")]
+
+
+def test_yearly_category_level1_board_has_yoy(app):
+    with app.app_context():
+        food = _cat("支出", "食品酒水")
+        lunch = _cat("支出", "午餐", food)
+        _record("支出", dt.date(2024, 3, 1), lunch, "100.00")
+        _record("支出", dt.date(2025, 3, 1), lunch, "150.00")
+        board = yearly_stats(2025)["cat1_board"]
+        assert board[0]["yoy"]["pct"] == Decimal("50.00")  # (150-100)/100
 
 
 def test_yearly_stats_monthly_series_and_yoy(app):
