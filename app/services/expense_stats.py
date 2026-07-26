@@ -6,7 +6,8 @@ import calendar
 import datetime as dt
 from decimal import Decimal, ROUND_HALF_UP
 
-from app.models.expense import ExpenseCategory, ExpenseRecord
+from app.extensions import db
+from app.models.expense import ExpenseCategory, ExpenseRecord, ExpenseTag
 
 TWO = Decimal("0.01")
 ZERO = Decimal("0.00")
@@ -355,3 +356,82 @@ def overview_stats(today=None):
         "first_date": first_date,
         "last_date": last_date,
     }
+
+
+# 走势页专用：一次算出所有维度（一级/二级/标签）各自的逐年金额与笔数序列，客户端切换单条折线。
+# 排序分组：支出一级 → 支出二级 → 收入一级 → 收入二级 → 标签，组内按累计金额降序，供下拉分组用。
+_TREND_GROUP_RANK = {("cat1", "支出"): 0, ("cat2", "支出"): 1,
+                     ("cat1", "收入"): 2, ("cat2", "收入"): 3, ("tag", None): 4}
+
+
+def trend_stats():
+    """所有分类/标签维度的逐年走势。返回 {years, dimensions, default_key}：
+    - years：全量记账跨度 first_year..last_year（含无数据的中间年），各维度共用一条时间轴；
+    - dimensions：每项 {key, type(cat1/cat2/tag), kind, name, icon, parent, total, amounts[], counts[]}，
+      amounts/counts 与 years 一一对应，某年无消费补 0；
+    - default_key：累计金额最高的维度，进页面默认选中。
+    标签跨支出/收入汇总，kind 为 None。无记录时三者分别为 [] / [] / None。"""
+    records = ExpenseRecord.query.all()
+    if not records:
+        return {"years": [], "dimensions": [], "default_key": None}
+
+    years = list(range(min(r.date.year for r in records), max(r.date.year for r in records) + 1))
+    year_idx = {y: i for i, y in enumerate(years)}
+    n = len(years)
+    dims = {}
+
+    def bucket(key, **meta):
+        d = dims.get(key)
+        if d is None:
+            d = dims[key] = {"key": key, "amounts": [ZERO] * n, "counts": [0] * n, **meta}
+        return d
+
+    for r in records:
+        i = year_idx[r.date.year]
+        top = _top_category(r.category)
+        d1 = bucket(f"cat1-{top.id}", type="cat1", kind=top.kind, name=top.name, icon=top.icon, parent=None)
+        d1["amounts"][i] += r.amount
+        d1["counts"][i] += 1
+        cat = r.category
+        if cat.parent_id is not None:
+            d2 = bucket(f"cat2-{cat.id}", type="cat2", kind=cat.kind, name=cat.name,
+                        icon=cat.icon or cat.parent.icon, parent=cat.parent.name,
+                        parent_key=f"cat1-{cat.parent_id}")
+            d2["amounts"][i] += r.amount
+            d2["counts"][i] += 1
+        if r.tag:
+            dt_ = bucket(f"tag-{r.tag_id}", type="tag", kind=None, name=r.tag.name, icon=None, parent=None)
+            dt_["amounts"][i] += r.amount
+            dt_["counts"][i] += 1
+
+    for d in dims.values():
+        d["amounts"] = [_q(a) for a in d["amounts"]]
+        d["total"] = _q(sum(d["amounts"], ZERO))
+
+    default_key = max(dims.values(), key=lambda d: d["total"])["key"]
+    ordered = sorted(dims.values(),
+                     key=lambda d: (_TREND_GROUP_RANK.get((d["type"], d["kind"]), 9), -d["total"]))
+    return {"years": years, "dimensions": ordered, "default_key": default_key}
+
+
+def trend_year_records(key, year, limit=15):
+    """走势页右侧「某年 Top 消费」：给一个维度 key（cat1-<id>/cat2-<id>/tag-<id>）和年份，
+    返回该维度当年金额最高的前 limit 笔（结构同各榜的 records，交蓝图序列化）。
+    一级维度含其所有二级；未知前缀返回空。"""
+    prefix, _, ident = key.rpartition("-")
+    if not ident.isdigit():
+        return []
+    ident = int(ident)
+    q = ExpenseRecord.query.filter(ExpenseRecord.date >= dt.date(year, 1, 1),
+                                   ExpenseRecord.date <= dt.date(year, 12, 31))
+    if prefix == "cat1":
+        cat = db.session.get(ExpenseCategory, ident)
+        ids = [ident] + [c.id for c in cat.children] if cat else [ident]
+        q = q.filter(ExpenseRecord.category_id.in_(ids))
+    elif prefix == "cat2":
+        q = q.filter(ExpenseRecord.category_id == ident)
+    elif prefix == "tag":
+        q = q.filter(ExpenseRecord.tag_id == ident)
+    else:
+        return []
+    return _top_records(q.all(), limit)

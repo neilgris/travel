@@ -138,12 +138,12 @@ sha1("kind|date|一级分类|二级分类|金额|商家|备注|同键序号")
 ```
 app/models/expense.py            ExpenseCategory / ExpenseTag / ExpenseRecord + DEFAULT_CATEGORIES
 app/services/expense_import.py   解析两个 sheet → 查建分类/标签 → 指纹去重写入 → 返回统计
-app/services/expense_stats.py    月度、年度、整体统计聚合 + 共用聚合小工具（一级/二级分类、标签排行；纯查询，无 HTTP）
+app/services/expense_stats.py    月度、年度、整体统计、分类走势聚合 + 共用聚合小工具（一级/二级分类、标签排行；纯查询，无 HTTP）
 app/blueprints/expenses.py       url_prefix=/expenses
-app/templates/expenses/          list / form / monthly / yearly / overview / import / categories .html
+app/templates/expenses/          list / form / monthly / yearly / overview / trends / import / categories .html
                                  _list_results / _item_row / _inline_edit_form（流水行内编辑片段）
                                  _stats_macros.html（月/年/总览共用 KPI·环图·排行榜宏）
-app/static/expenses-stats.js     月/年/总览共用图表工具（调色板、金额格式化、环图工厂）
+app/static/expenses-stats.js     月/年/总览/走势共用图表工具（调色板、金额格式化、环图工厂、走势控制器）
 ```
 
 既有的 `app/services/import_expense.py` 是**旅程专用**的（要匹配 Trip 的 Day 与申报币种），语义不同，本模块另起 `expense_import.py`，不改动它。
@@ -157,6 +157,8 @@ app/static/expenses-stats.js     月/年/总览共用图表工具（调色板、
 | `GET /expenses/monthly?ym=YYYY-MM` | 当月仪表盘 |
 | `GET /expenses/yearly?year=YYYY` | 年度分析 |
 | `GET /expenses/overview` | 整体统计：跨全部年份的对比看板 |
+| `GET /expenses/trends` | 分类走势：选一个维度（一级/二级分类或标签）看逐年金额折线，点某年在下方多列看当年 Top 50 消费 |
+| `GET /expenses/trends/records?key=&year=` | 走势页右侧数据源：某维度某年金额最高的前 50 笔（内部 XHR，按需拉取） |
 | `GET,POST /expenses/import` | 上传 `.xls`，写入后展示结果摘要；页内含危险操作区：`POST /expenses/clear` 清空全部或按年清空流水 |
 | `GET,POST /expenses/categories` | 分类树增删改排序 + 标签管理 |
 
@@ -188,6 +190,14 @@ app/static/expenses-stats.js     月/年/总览共用图表工具（调色板、
 - 逐年明细表：年份 / 支出 / 收入 / 结余 / 结余率 / 支出同比（涨红降绿）——排在三个榜之后、页尾
 - 口径：年均 = 累计支出 ÷ 有支出的年数；结余率 = 累计结余 ÷ 累计收入；年份区间按首末记录连续填满
 
+**分类走势**（`/expenses/trends`）——单维度的逐年走势 + 当年 Top 消费
+
+- 选一个维度：分类模式下一级联动二级（二级下拉含「整个〔一级〕」= 看一级合计），或标签模式可输入联想；分类树含支出与收入两类，标签跨两类汇总
+- 满宽折线画该维度逐年金额（X 轴为全量记账跨度 first_year..last_year，某年无消费画 0；各维度共用一条时间轴），默认选中累计金额最高的维度
+- 逐年明细表：年份 / 金额 / 同比（涨红降绿，客户端由序列算）/ 笔数，行可点选年份
+- 点折线上任意年份（或点明细表某行）→ 下方按金额**从左到右、从上到下**多列（列宽 300px 自适应，宽屏约 3 列）展示该维度当年 **Top 50** 单笔，标题带当年金额与总笔数
+- 服务端 `trend_stats()` 一次算好所有维度逐年金额/笔数序列内联为 JSON，纯前端切换；当年 Top 50 明细由 `trend_year_records()` 经 `/trends/records` 按需拉取（避免把上万条明细塞进页面）
+
 **三个排行榜：一级分类榜 / 二级分类榜 / 标签榜**（三页共用，显示顺序即此）
 
 - 都是**两栏 Miller 列，同一套列样式与渲染工具**（`expBoard` + `expMillerItem` / `expMillerRecords`）：**左栏排行**（固定常驻，金额降序），点某项 → **右栏该项名下单笔支出 Top 15**（按金额降序，显示日期/分类/标签/备注）。进页面默认选中金额第一项，右栏不空。
@@ -204,7 +214,7 @@ app/static/expenses-stats.js     月/年/总览共用图表工具（调色板、
 `base.html` 顶栏左侧改为两个模块入口，当前模块高亮；右侧子菜单按 `request.blueprint` 切换：
 
 - **旅行记录**：旅程 / 足迹 / 创建 / 设置
-- **日常消费**：流水 / 月度 / 年度 / 总览 / 导入 / 分类
+- **日常消费**：流水 / 月度 / 年度 / 总览 / 走势 / 导入 / 分类
 
 ## 9. 测试
 

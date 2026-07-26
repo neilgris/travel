@@ -174,6 +174,39 @@ def test_monthly_and_yearly_pages_load(client, app):
     assert client.get("/expenses/yearly?year=2025").status_code == 200
 
 
+def test_trends_page_loads_with_and_without_data(client, app):
+    # 空库：出提示，不报错
+    resp = client.get("/expenses/trends")
+    assert resp.status_code == 200
+    assert "还没有消费记录" in resp.get_data(as_text=True)
+    _, lunch_id = _seed_categories(app)
+    with app.app_context():
+        db.session.add(ExpenseRecord(kind="支出", date=dt.date(2024, 6, 1), category_id=lunch_id,
+                                     amount=Decimal("10.00"), source="manual"))
+        db.session.commit()
+    resp = client.get("/expenses/trends")
+    assert resp.status_code == 200
+    assert "分类走势" in resp.get_data(as_text=True)
+
+
+def test_trend_records_endpoint_returns_top_of_year(client, app):
+    top_id, lunch_id = _seed_categories(app)
+    with app.app_context():
+        db.session.add_all([
+            ExpenseRecord(kind="支出", date=dt.date(2025, 3, 1), category_id=lunch_id,
+                          amount=Decimal("30.00"), source="manual"),
+            ExpenseRecord(kind="支出", date=dt.date(2025, 4, 1), category_id=lunch_id,
+                          amount=Decimal("80.00"), source="manual"),
+        ])
+        db.session.commit()
+    resp = client.get(f"/expenses/trends/records?key=cat1-{top_id}&year=2025")
+    assert resp.status_code == 200
+    amounts = [r["amount"] for r in resp.get_json()["records"]]
+    assert amounts == [80.0, 30.0]
+    # 缺参数 → 空列表，不报错
+    assert client.get("/expenses/trends/records").get_json() == {"records": []}
+
+
 def test_overview_page_loads_with_and_without_data(client, app):
     # 空库也不能报错
     assert client.get("/expenses/overview").status_code == 200

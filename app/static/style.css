@@ -733,6 +733,36 @@ canvas { max-width: 100%; }
 .year-table td.num, .year-table th:not(:first-child) { text-align: right; }
 .year-table td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* ---- 分类走势页 ---- */
+.trend-controls { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+.trend-mode { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.trend-mode-btn {
+  padding: 0.42rem 0.95rem; background: #fff; border: none; cursor: pointer;
+  font-size: 0.88rem; color: var(--muted);
+}
+.trend-mode-btn + .trend-mode-btn { border-left: 1px solid var(--border); }
+.trend-mode-btn.is-active { background: var(--primary); color: #fff; }
+.trend-pickers { display: flex; gap: 0.6rem; flex: 1; flex-wrap: wrap; }
+.trend-pickers[hidden] { display: none; }
+.trend-lbl {
+  display: flex; align-items: center; gap: 0.35rem; flex: 1 1 13rem; min-width: 0;
+  font-size: 0.85rem; color: var(--muted); font-weight: 600;
+}
+.trend-select {
+  flex: 1; min-width: 0; padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border); border-radius: 8px; background: #fff;
+  font-size: 0.9rem; color: inherit; font-weight: 400;
+}
+/* 当年 Top 50：网格自适应铺开（宽屏 3~4 列、窄屏 1~2 列），按金额从左到右、从上到下 */
+.trend-top-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); column-gap: 1.4rem; }
+.trend-hint { font-size: 0.78rem; margin: 0.5rem 0 0; }
+.trend-table th:not(:first-child), .trend-table td.num { text-align: right; }
+.trend-table td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.trend-row { cursor: pointer; }
+.trend-row:hover { background: var(--bg); }
+.trend-row.is-sel { background: #fdf1ec; }
+.empty-hint { color: var(--muted); }
+
 /* 类别明细面板 */
 .cat-detail-card { display: flex; flex-direction: column; }
 .cat-detail-body { flex: 1; overflow-y: auto; max-height: 400px; }
@@ -1259,52 +1289,73 @@ a.ms-card:hover { transform: translateY(-2px); transition: transform .15s; }
 .msel-opt input { width: auto; margin: 0; }
 .msel-sub { padding-left: 1.4rem; }
 
-.exp-list { grid-template-columns: 1fr; }
-.exp-item .tl-title { white-space: normal; font-weight: 500; display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
-.exp-item .tl-meta { flex: 0 0 auto; white-space: nowrap; overflow: visible; }
+.exp-list { grid-template-columns: 1fr; gap: 0; }
+
+/* 流水行：图标固定圆底 + 标题区吃满剩余空间自动换行 + 金额固定宽度右对齐成一列，
+   删除按钮平时隐藏，悬停整行才淡出现——避免它常驻挤占右侧、造成视觉空洞。
+   一天的记录共用一张 .exp-day 卡片，行与行之间只用细分割线分开，
+   不再每行单独一张浮动卡片（那样太碎，也是本轮改版要解决的主要问题）。 */
+.exp-item { align-items: center; padding: .48rem .2rem; border-top: 1px solid var(--border); }
+.exp-list-compact .exp-item:first-child { border-top: none; }
+.exp-item .tl-main {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .55rem;
+}
+.exp-icon {
+  flex: 0 0 auto; width: 1.7rem; height: 1.7rem; border-radius: 50%;
+  background: var(--bg); display: flex; align-items: center; justify-content: center;
+  font-size: .92rem; line-height: 1;
+}
+.exp-item .tl-title {
+  flex: 1 1 auto; min-width: 0; white-space: normal; font-weight: 500;
+  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+}
+.exp-item-date { font-size: .78rem; color: var(--muted); font-weight: 400; }
+.exp-amount {
+  flex: 0 0 auto; min-width: 5.4rem; text-align: right;
+  font-variant-numeric: tabular-nums; font-weight: 600;
+}
 .exp-tag {
   font-size: .74rem; color: var(--primary); background: var(--ring);
   border-radius: 999px; padding: .05rem .5rem;
 }
-.exp-amount-expense { color: var(--accent-dark); font-weight: 600; }
-.exp-amount-income { color: var(--primary-dark); font-weight: 600; }
+.exp-amount-expense { color: var(--text); }
+.exp-amount-income { color: var(--primary-dark); }
+.exp-del-form { flex: 0 0 auto; margin-left: .1rem; opacity: 0; transition: opacity .15s; }
+.exp-item:hover .exp-del-form, .exp-item:focus-within .exp-del-form { opacity: 1; }
 .exp-del {
-  background: none; border: none; cursor: pointer; padding: 0;
-  font-size: .78rem; color: var(--muted); text-decoration: underline;
-  opacity: .5; transition: opacity .15s, color .15s;
+  background: none; border: none; cursor: pointer; padding: .1rem .3rem;
+  font-size: .8rem; color: var(--muted); line-height: 1;
 }
-.exp-item:hover .exp-del { opacity: 1; }
 .exp-del:hover { color: var(--accent-dark); }
 
-/* 按日再分组：标题吸顶（贴在月标题下方）、行距压到最窄，
-   日与日、月与月之间的间隔靠 .exp-day 的外边距保留，不放进 gap 里。 */
-.exp-day { margin: 0 0 .6rem; }
+/* 按日再分组：一天一张卡（.exp-day.card），标题条吸顶在月标题下方，
+   小计和上面流水行的金额列右对齐，一眼能对上。 */
 .exp-day-head {
   position: sticky; top: 87px; z-index: 1;
-  margin: 0 0 .2rem; padding: .2rem .1rem;
-  font-size: .76rem; font-weight: 600; color: var(--muted);
-  background: var(--bg, #fff);
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin: 0 0 .4rem; padding: .1rem 0;
+  font-size: .8rem; font-weight: 700; color: var(--text);
+  background: var(--surface, #fff);
 }
-.exp-day-head span { font-weight: 400; margin-left: .4rem; }
-.exp-list-compact { gap: 1px; }
-.exp-list-compact .tl-item { padding: .22rem .6rem; }
+.exp-day-sub { font-weight: 400; font-size: .78rem; color: var(--muted); }
+.exp-list-compact { gap: 0; }
 .exp-list-compact .tl-title { font-size: .85rem; }
-.exp-list-compact .tl-meta { font-size: .74rem; }
+.exp-item-date, .exp-list-compact .exp-amount { font-size: .82rem; }
 
 /* 流水行内编辑：点一行原地下拉成表单，替换掉 .tl-item 的横向 flex 布局。
    所有控件挤进一行 flex-wrap，屏幕不够宽时自然只落到两行，不用单独的两行栅格。 */
 .exp-item-editing { display: block; padding: .5rem .7rem; cursor: default; }
 .exp-inline-row { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
 .exp-inline-row input, .exp-inline-row select {
-  width: auto; padding: .3rem .45rem; font-size: .82rem;
+  width: auto; min-width: 0; padding: .3rem .45rem; font-size: .82rem;
 }
-.exp-inline-kind { flex: 0 0 4.2rem; }
-.exp-inline-row input[type="date"] { flex: 0 0 8.6rem; }
-.exp-inline-amount { flex: 0 0 5.2rem; }
-.exp-inline-cat1 { flex: 0 0 6.6rem; }
-.exp-inline-cat2 { flex: 0 0 6.6rem; }
-.exp-inline-tag { flex: 0 0 5.6rem; }
-.exp-inline-note { flex: 1 1 8rem; min-width: 5rem; }
+.exp-inline-kind { flex: 0 0 3.6rem; }
+.exp-inline-row input[type="date"] { flex: 0 0 8rem; }
+.exp-inline-amount { flex: 0 0 4rem; }
+.exp-inline-cat1 { flex: 0 0 7.4rem; }
+.exp-inline-cat2 { flex: 0 0 7.8rem; }
+.exp-inline-tag { flex: 0 0 4.6rem; }
+.exp-inline-note { flex: 1 1 4rem; min-width: 3rem; }
 .exp-inline-row .btn-sm { flex: 0 0 auto; padding: .3rem .7rem; }
 .exp-inline-error { margin: .35rem 0 0; font-size: .8rem; color: var(--accent-dark); }
 

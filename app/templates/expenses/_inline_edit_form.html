@@ -1,4 +1,4 @@
-<li class="card tl-item exp-item exp-item-editing" data-record-id="{{ record.id }}">
+<li class="tl-item exp-item exp-item-editing" data-record-id="{{ record.id }}">
   <form class="exp-inline-form" data-edit-url="{{ url_for('expenses.edit', record_id=record.id) }}"
         data-cur-kind="{{ record.kind }}"
         data-cur-cat1="{{ record.category.parent_id or record.category.id }}"

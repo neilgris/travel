@@ -1,28 +1,30 @@
 {% macro exp_item(r, show_date=True) %}
-<li class="card tl-item exp-item">
+<li class="tl-item exp-item">
   <a class="tl-main" href="{{ url_for('expenses.edit', record_id=r.id) }}">
+    <span class="exp-icon">{{ r.category.display_icon or '' }}</span>
     <span class="tl-title">
-      {{ r.category.display_icon or '' }} {{ r.category.name }}
+      {{ r.category.name }}
       {% if r.tag %}<span class="exp-tag">#{{ r.tag.name }}</span>{% endif %}
       {% if r.note %}<span class="muted">{{ r.note }}</span>{% endif %}
+      {% if show_date %}<span class="exp-item-date">{{ r.date.isoformat() }}</span>{% endif %}
     </span>
-    <span class="tl-meta">
-      {% if show_date %}{{ r.date.isoformat() }} · {% endif %}
-      <span class="{{ 'exp-amount-income' if r.kind == '收入' else 'exp-amount-expense' }}">
-        {{ '+' if r.kind == '收入' else '−' }}￥{{ '{:,.2f}'.format(r.amount) }}
-      </span>
+    <span class="exp-amount {{ 'exp-amount-income' if r.kind == '收入' else 'exp-amount-expense' }}">
+      {{ '+' if r.kind == '收入' else '−' }}￥{{ '{:,.2f}'.format(r.amount) }}
     </span>
   </a>
   <form method="post" action="{{ url_for('expenses.delete', record_id=r.id) }}"
-        onsubmit="return confirm('删除这条记录？')">
-    <button class="link-danger exp-del" type="submit">删除</button>
+        class="exp-del-form" onsubmit="return confirm('删除这条记录？')">
+    <button class="exp-del" type="submit" title="删除">✕</button>
   </form>
 </li>
 {% endmacro %}
 {% macro group_days(g) %}
 {% for day in g.days %}
-<div class="exp-day">
-  <h3 class="exp-day-head">{{ day.date.isoformat() }} <span>支出 ￥{{ '{:,.2f}'.format(day.subtotal) }}</span></h3>
+<div class="exp-day card">
+  <div class="exp-day-head">
+    <span class="exp-day-date">{{ day.date.isoformat() }}</span>
+    <span class="exp-day-sub">支出 ￥{{ '{:,.2f}'.format(day.subtotal) }}</span>
+  </div>
   <ul class="trip-list exp-list exp-list-compact">
     {% for r in day.records %}{{ exp_item(r, show_date=False) }}{% endfor %}
   </ul>
