@@ -124,3 +124,172 @@ function expFmtCat2(d) {  // 二级分类榜：图标 + 名称 / 所属一级 ·
 function expFmtTag(d) {  // 标签榜：#标签 / N 笔
   return { title: '#' + expEsc(d.tag), meta: `${d.count} 笔` };
 }
+
+// —— 分类走势页：选一个维度（一级/二级/标签）看它逐年金额折线，点某年在右侧看当年 Top 消费 ——
+// 选择器是联动式：一级→二级两级下拉，或标签可输入联想；维度太多时不再挤在一个长下拉里。
+const TREND_LINE = '#e76f51';
+const TREND_LINE_SEL = '#c1440e';  // 选中年份的高亮点
+
+// 维度显示名：一级=图标+名；二级=图标+一级·名；标签=#名。
+function expTrendLabel(d) {
+  const icon = expIconPrefix(d.icon);
+  if (d.type === 'tag') return icon + '#' + expEsc(d.name);
+  if (d.type === 'cat2') return icon + expEsc(d.parent) + ' · ' + expEsc(d.name);
+  return icon + expEsc(d.name);
+}
+
+// data: {years:[…], dimensions:[{key,type,kind,name,icon,parent,parent_key,total,amounts[],counts[]}], default_key}
+function expTrends(data) {
+  const el = id => document.getElementById(id);
+  const cat1Sel = el('trendCat1'), cat2Sel = el('trendCat2');
+  const tagInput = el('trendTagInput'), tagList = el('trendTagList');
+  const title = el('trendChartTitle'), tbody = el('trendTableBody');
+  const topTitle = el('trendTopTitle'), topList = el('trendTopList');
+  if (!cat1Sel) return;
+
+  const dims = data.dimensions;
+  const byKey = Object.fromEntries(dims.map(d => [d.key, d]));
+  const cat1s = dims.filter(d => d.type === 'cat1');
+  const tags = dims.filter(d => d.type === 'tag');
+  const tagByName = Object.fromEntries(tags.map(d => [d.name, d]));
+  const childrenOf = {};  // 一级 key → [二级维度]
+  dims.filter(d => d.type === 'cat2').forEach(d => (childrenOf[d.parent_key] ||= []).push(d));
+
+  let curKey = data.default_key;
+  let selYear = data.years[data.years.length - 1];  // 默认看最后一年
+
+  // ---- 填充选择器 ----
+  cat1Sel.innerHTML = [['支出', '支出'], ['收入', '收入']].map(([kind, label]) => {
+    const items = cat1s.filter(d => d.kind === kind);
+    if (!items.length) return '';
+    return `<optgroup label="${label}">` +
+      items.map(d => `<option value="${d.key}">${expTrendLabel(d)}</option>`).join('') + '</optgroup>';
+  }).join('');
+  tagList.innerHTML = tags.map(d => `<option value="${expEsc(d.name)}">`).join('');
+
+  function fillCat2(cat1Key) {
+    const parent = byKey[cat1Key];
+    const kids = childrenOf[cat1Key] || [];
+    cat2Sel.innerHTML = `<option value="${cat1Key}">整个「${expEsc(parent.name)}」</option>` +
+      kids.map(d => `<option value="${d.key}">${expIconPrefix(d.icon)}${expEsc(d.name)}</option>`).join('');
+  }
+
+  function setMode(mode) {
+    document.querySelectorAll('.trend-mode-btn').forEach(b => b.classList.toggle('is-active', b.dataset.mode === mode));
+    document.querySelectorAll('[data-mode-panel]').forEach(p => { p.hidden = p.dataset.modePanel !== mode; });
+  }
+
+  // 根据 curKey 把选择器 UI 摆到对应位置（首次进入 & 切模式时用）
+  function syncPickers() {
+    const d = byKey[curKey];
+    if (d.type === 'tag') {
+      setMode('tag');
+      tagInput.value = d.name;
+    } else {
+      setMode('cat');
+      const cat1Key = d.type === 'cat2' ? d.parent_key : d.key;
+      cat1Sel.value = cat1Key;
+      fillCat2(cat1Key);
+      cat2Sel.value = d.key;
+    }
+  }
+
+  // ---- 折线图 ----
+  const chart = new Chart(el('trendChart'), {
+    type: 'line',
+    data: {
+      labels: data.years.map(y => y + '年'),
+      datasets: [{
+        data: [], borderColor: TREND_LINE, backgroundColor: 'rgba(231,111,81,0.12)',
+        tension: 0.3, fill: true, pointHoverRadius: 7,
+      }],
+    },
+    options: {
+      // 点图上任意处：取最近的年份列（不必正好戳中圆点），选中该年
+      onClick: evt => {
+        const pts = chart.getElementsAtEventForMode(evt, 'index', { intersect: false }, true);
+        if (pts.length) { selYear = data.years[pts[0].index]; renderAll(); }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { mode: 'index', intersect: false, callbacks: { label: i => ' ' + expFmt(i.raw) } },
+      },
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('zh-CN') } },
+      },
+    },
+  });
+
+  function yoyCell(cur, prev, i) {
+    if (i === 0 || prev == null || prev === 0) return '<span class="muted">—</span>';
+    const pct = (cur - prev) / prev * 100;
+    const up = pct >= 0;
+    return `<span style="color:${up ? TREND_LINE : '#2a9d8f'}">${up ? '+' : ''}${pct.toFixed(1)}%</span>`;
+  }
+
+  function renderChart(d, iSel) {
+    const ds = chart.data.datasets[0];
+    ds.data = d.amounts;
+    ds.pointRadius = data.years.map((y, i) => i === iSel ? 7 : 4);
+    ds.pointBackgroundColor = data.years.map((y, i) => i === iSel ? TREND_LINE_SEL : TREND_LINE);
+    chart.update();
+    title.textContent = expTrendLabel(d).trim() + ' · 逐年走势';
+  }
+
+  function renderTable(d) {
+    tbody.innerHTML = data.years.map((y, i) => `<tr class="trend-row${y === selYear ? ' is-sel' : ''}" data-year="${y}">
+      <td>${y}</td>
+      <td class="num">${expFmt(d.amounts[i])}</td>
+      <td class="num">${yoyCell(d.amounts[i], d.amounts[i - 1], i)}</td>
+      <td class="num">${d.counts[i]}</td>
+    </tr>`).join('');
+  }
+
+  // 当年 Top 50 消费：每次维度或年份变化时按需拉一段明细，下方多列自适应铺开
+  let topReqId = 0;
+  function renderTop(d, iSel) {
+    const count = d.counts[iSel] || 0;
+    topTitle.textContent = `${selYear} · ${expTrendLabel(d).trim()} · ${expFmt(d.amounts[iSel] || 0)} · 共 ${count} 笔`;
+    const reqId = ++topReqId;
+    topList.innerHTML = '<li class="cat-empty">加载中…</li>';
+    fetch(`/expenses/trends/records?key=${encodeURIComponent(curKey)}&year=${selYear}`)
+      .then(r => r.json())
+      .then(j => {
+        if (reqId !== topReqId) return;  // 快速连点，只认最后一次
+        topList.innerHTML = expMillerRecords(j.records.map(r => ({ ...r, amount: +r.amount })), TREND_LINE);
+      })
+      .catch(() => { if (reqId === topReqId) topList.innerHTML = expMillerEmpty('加载失败'); });
+  }
+
+  function renderAll() {
+    const d = byKey[curKey];
+    const iSel = data.years.indexOf(selYear);
+    renderChart(d, iSel);
+    renderTable(d);
+    renderTop(d, iSel);
+  }
+
+  // ---- 事件 ----
+  document.querySelectorAll('.trend-mode-btn').forEach(btn => btn.addEventListener('click', () => {
+    const mode = btn.dataset.mode;
+    setMode(mode);
+    if (mode === 'tag') { curKey = (tagByName[tagInput.value] || tags[0]).key; tagInput.value = byKey[curKey].name; }
+    else { curKey = cat2Sel.value || cat1Sel.value || cat1s[0].key; }
+    renderAll();
+  }));
+  cat1Sel.addEventListener('change', () => { fillCat2(cat1Sel.value); curKey = cat1Sel.value; renderAll(); });
+  cat2Sel.addEventListener('change', () => { curKey = cat2Sel.value; renderAll(); });
+  tagInput.addEventListener('change', () => {
+    const d = tagByName[tagInput.value];
+    if (d) { curKey = d.key; renderAll(); }
+  });
+  tbody.addEventListener('click', e => {
+    const row = e.target.closest('.trend-row[data-year]');
+    if (row) { selYear = +row.dataset.year; renderAll(); }
+  });
+
+  syncPickers();
+  renderAll();
+}

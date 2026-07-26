@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}分类走势{% endblock %}
+{% block content %}
+<div class="trip-title-nav">
+  <h1>分类走势</h1>
+</div>
+
+{% if has_data %}
+<div class="card trend-controls">
+  <div class="trend-mode" role="tablist">
+    <button type="button" class="trend-mode-btn is-active" data-mode="cat">分类</button>
+    <button type="button" class="trend-mode-btn" data-mode="tag">标签</button>
+  </div>
+  <div class="trend-pickers" data-mode-panel="cat">
+    <label class="trend-lbl">一级<select id="trendCat1" class="trend-select"></select></label>
+    <label class="trend-lbl">二级<select id="trendCat2" class="trend-select"></select></label>
+  </div>
+  <div class="trend-pickers" data-mode-panel="tag" hidden>
+    <label class="trend-lbl">标签<input id="trendTagInput" class="trend-select" list="trendTagList"
+           placeholder="输入标签名，如 咖啡"></label>
+    <datalist id="trendTagList"></datalist>
+  </div>
+</div>
+
+<div class="card">
+  <h3 id="trendChartTitle">逐年走势</h3>
+  <canvas id="trendChart" height="72"></canvas>
+  <p class="trend-hint muted">点折线上的年份，下方看当年 Top 50 消费</p>
+</div>
+
+<div class="card">
+  <h3 id="trendTopTitle">Top 50 消费</h3>
+  <ol id="trendTopList" class="cat-col trend-top-cols"></ol>
+</div>
+
+<div class="card">
+  <h3>逐年数据<span class="drill-hint">点某年看当年 Top 消费</span></h3>
+  <table class="trend-table">
+    <thead><tr><th>年份</th><th class="num">金额</th><th class="num">同比</th><th class="num">笔数</th></tr></thead>
+    <tbody id="trendTableBody"></tbody>
+  </table>
+</div>
+{% else %}
+<div class="card empty-hint">还没有消费记录，先去<a href="{{ url_for('expenses.import_file') }}">导入</a>或<a href="{{ url_for('expenses.create') }}">记一笔</a>吧。</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if has_data %}
+<script src="{{ url_for('static', filename='expenses-stats.js') }}"></script>
+<script>expTrends({{ trend_json | safe }});</script>
+{% endif %}
+{% endblock %}

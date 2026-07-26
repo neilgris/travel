@@ -2,7 +2,8 @@ import datetime as dt
 from decimal import Decimal
 from app.extensions import db
 from app.models.expense import ExpenseCategory, ExpenseTag, ExpenseRecord
-from app.services.expense_stats import monthly_stats, yearly_stats, overview_stats
+from app.services.expense_stats import (monthly_stats, yearly_stats, overview_stats,
+                                         trend_stats, trend_year_records)
 
 
 def _cat(kind, name, parent=None):
@@ -347,3 +348,90 @@ def test_overview_stats_empty_is_safe(app):
         assert s["savings_rate"] is None
         assert s["avg_year_expense"] == Decimal("0.00")
         assert s["record_count"] == 0
+
+
+def test_trend_stats_yearly_series_per_dimension(app):
+    with app.app_context():
+        food = _cat("支出", "食品酒水")
+        lunch = _cat("支出", "午餐", food)
+        dinner = _cat("支出", "晚餐", food)
+        salary = _cat("收入", "工资收入")
+        trip_tag = ExpenseTag(name="旅行")
+        db.session.add(trip_tag)
+        db.session.commit()
+
+        _record("支出", dt.date(2023, 3, 1), lunch, "30.00")
+        _record("支出", dt.date(2024, 3, 1), lunch, "50.00", tag=trip_tag)
+        _record("支出", dt.date(2025, 3, 1), dinner, "20.00")
+        _record("收入", dt.date(2025, 1, 5), salary, "8000.00", tag=trip_tag)
+
+        s = trend_stats()
+        assert s["years"] == [2023, 2024, 2025]
+
+        # 一级 食品酒水：午餐 + 晚餐 三年汇总
+        food_dim = next(d for d in s["dimensions"] if d["type"] == "cat1" and d["name"] == "食品酒水")
+        assert food_dim["kind"] == "支出"
+        assert food_dim["amounts"] == [Decimal("30.00"), Decimal("50.00"), Decimal("20.00")]
+        assert food_dim["counts"] == [1, 1, 1]
+        assert food_dim["total"] == Decimal("100.00")
+
+        # 二级 午餐：仅 2023 / 2024，2025 补 0
+        lunch_dim = next(d for d in s["dimensions"] if d["type"] == "cat2" and d["name"] == "午餐")
+        assert lunch_dim["parent"] == "食品酒水"
+        assert lunch_dim["amounts"] == [Decimal("30.00"), Decimal("50.00"), Decimal("0.00")]
+
+        # 收入一级
+        salary_dim = next(d for d in s["dimensions"] if d["name"] == "工资收入")
+        assert salary_dim["kind"] == "收入"
+        assert salary_dim["type"] == "cat1"
+        assert salary_dim["amounts"] == [Decimal("0.00"), Decimal("0.00"), Decimal("8000.00")]
+
+        # 标签跨支出/收入汇总，kind 为 None
+        tag_dim = next(d for d in s["dimensions"] if d["type"] == "tag" and d["name"] == "旅行")
+        assert tag_dim["kind"] is None
+        assert tag_dim["amounts"] == [Decimal("0.00"), Decimal("50.00"), Decimal("8000.00")]
+        assert tag_dim["counts"] == [0, 1, 1]
+
+        # 默认选中全局金额最高维度 = 标签「旅行」（8050 > 工资收入 8000）
+        assert s["default_key"] == tag_dim["key"]
+
+        # 二级维度带 parent_key，供联动选择器把二级挂回一级
+        assert lunch_dim["parent_key"] == food_dim["key"]
+
+
+def test_trend_stats_empty(app):
+    with app.app_context():
+        assert trend_stats() == {"years": [], "dimensions": [], "default_key": None}
+
+
+def test_trend_year_records_by_dimension_and_year(app):
+    with app.app_context():
+        food = _cat("支出", "食品酒水")
+        lunch = _cat("支出", "午餐", food)
+        dinner = _cat("支出", "晚餐", food)
+        trip_tag = ExpenseTag(name="旅行")
+        db.session.add(trip_tag)
+        db.session.commit()
+
+        _record("支出", dt.date(2025, 3, 1), lunch, "30.00", tag=trip_tag)
+        _record("支出", dt.date(2025, 4, 1), dinner, "80.00")
+        _record("支出", dt.date(2024, 3, 1), lunch, "999.00")  # 别的年份不算
+
+        # 一级：含全部二级，当年金额降序
+        cat1 = trend_year_records(f"cat1-{food.id}", 2025)
+        assert [r["amount"] for r in cat1] == [Decimal("80.00"), Decimal("30.00")]
+
+        # 二级：只该二级
+        cat2 = trend_year_records(f"cat2-{lunch.id}", 2025)
+        assert [r["amount"] for r in cat2] == [Decimal("30.00")]
+
+        # 标签
+        tag = trend_year_records(f"tag-{trip_tag.id}", 2025)
+        assert [r["amount"] for r in tag] == [Decimal("30.00")]
+
+        # 上限截断
+        assert trend_year_records(f"cat1-{food.id}", 2025, limit=1)[0]["amount"] == Decimal("80.00")
+
+        # 未知前缀 / 无数据年 → 空
+        assert trend_year_records("bogus-1", 2025) == []
+        assert trend_year_records(f"cat1-{food.id}", 2099) == []

@@ -14,7 +14,8 @@ from app.blueprints._json import safe_json
 from app.models.expense import (ExpenseCategory, ExpenseTag, ExpenseRecord, EXPENSE_KINDS,
                                 seed_default_categories, guess_icon)
 from app.services.expense_import import parse_rows, import_rows
-from app.services.expense_stats import monthly_stats, yearly_stats, overview_stats
+from app.services.expense_stats import (monthly_stats, yearly_stats, overview_stats,
+                                         trend_stats, trend_year_records)
 
 bp = Blueprint("expenses", __name__, url_prefix="/expenses")
 
@@ -284,6 +285,33 @@ def overview():
                            cat1_json=safe_json(_board_json(s["cat1_board"])),
                            cat2_json=safe_json(_board_json(s["cat2_board"])),
                            tag_drill_json=safe_json(_board_json(s["tag_drill"])))
+
+
+@bp.route("/trends")
+def trends():
+    s = trend_stats()
+    data = {
+        "years": s["years"],
+        "default_key": s["default_key"],
+        "dimensions": [{
+            "key": d["key"], "type": d["type"], "kind": d["kind"], "name": d["name"],
+            "icon": d["icon"], "parent": d["parent"], "parent_key": d.get("parent_key"),
+            "total": float(d["total"]),
+            "amounts": [float(a) for a in d["amounts"]], "counts": d["counts"],
+        } for d in s["dimensions"]],
+    }
+    return render_template("expenses/trends.html", trend_json=safe_json(data),
+                           has_data=bool(s["dimensions"]))
+
+
+@bp.route("/trends/records")
+def trend_records():
+    key = request.args.get("key") or ""
+    year = request.args.get("year", type=int)
+    if not key or not year:
+        return jsonify(records=[])
+    recs = trend_year_records(key, year, limit=50)
+    return jsonify(records=[_rec_json(r) for r in recs])
 
 
 @bp.route("/import", methods=["GET", "POST"])
