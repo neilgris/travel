@@ -46,7 +46,27 @@
       });
   }
 
+  // 筛选栏"收支"切换时，"分类"下拉里只留对应收支类型的分类可选——
+  // 已勾选但不属于当前收支类型的分类会被自动取消勾选。
+  var catMsel = document.getElementById('exp-cat-msel');
+  function filterCategoryMsel() {
+    if (!catMsel) return;
+    var kind = form.querySelector('select[name="kind"]').value;
+    var changed = false;
+    catMsel.querySelectorAll('.msel-opt').forEach(function (opt) {
+      var match = !kind || opt.dataset.kind === kind;
+      opt.hidden = !match;
+      if (!match) {
+        var cb = opt.querySelector('input[type="checkbox"]');
+        if (cb.checked) { cb.checked = false; changed = true; }
+      }
+    });
+    updateMselSummary(catMsel);
+    return changed;
+  }
+
   wireGroups(); // 首屏（服务端整页渲染）的月份分组也要接上折叠/展开逻辑
+  filterCategoryMsel(); // 首屏按当前"收支"筛选值同步一次分类下拉的可选项
 
   // 点一行流水，原地下拉成编辑表单，保存/取消都不刷新页面。
   // EXP_CATEGORIES 由 list.html 内联注入（一级+二级分类树，含图标）。
@@ -158,10 +178,27 @@
   });
 
   results.addEventListener('submit', function (e) {
-    var form = e.target.closest('.exp-inline-form');
-    if (!form) return;
-    e.preventDefault();
-    submitInlineEdit(form);
+    var editForm = e.target.closest('.exp-inline-form');
+    if (editForm) {
+      e.preventDefault();
+      submitInlineEdit(editForm);
+      return;
+    }
+    var delForm = e.target.closest('.exp-del-form');
+    if (delForm) {
+      e.preventDefault();
+      if (!confirm('删除这条记录？')) return;
+      fetch(delForm.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.ok) applyFilters();
+          else alert('删除失败');
+        })
+        .catch(function () { alert('网络错误，请重试'); });
+    }
   });
 
   function updateMselSummary(msel) {
@@ -212,6 +249,8 @@
 
   form.addEventListener('change', function (e) {
     if (e.target.type === 'text') return; // 交给上面 input 防抖处理
+
+    if (e.target.name === 'kind') filterCategoryMsel();
 
     var msel = e.target.closest('.msel');
     if (msel) updateMselSummary(msel);

@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}固定收支{% endblock %}
+
+{% macro category_select(kind, selected_id, name='category_id') -%}
+<select name="{{ name }}" class="rule-cat" data-kind="{{ kind }}">
+  {% for c in flat_categories if c.kind == kind %}
+  <option value="{{ c.id }}" data-kind="{{ c.kind }}" {% if c.id == selected_id %}selected{% endif %}>{{ c.label }}</option>
+  {% endfor %}
+</select>
+{%- endmacro %}
+
+{% block content %}
+<h1>固定收支</h1>
+<p class="muted">
+  房租、公积金这类每月/每季度雷打不动的收支，在这里配一条规则，进「日常消费」时会自动把从起始月到本月之间
+  缺的记录补齐 —— 关机几个月再打开也会一次补上。记录固定落在每月 1 号。
+</p>
+
+<h3 class="city-group">新增规则</h3>
+<form method="post" class="card rule-form" id="rule-create">
+  <div class="form-row">
+    <div class="field"><label>收支</label>
+      <select name="kind" id="rule-kind">
+        {% for k in kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>分类</label>
+      {{ category_select('支出', None) }}
+      {{ category_select('收入', None) }}
+    </div>
+    <div class="field"><label>金额</label>
+      <input type="number" step="0.01" min="0.01" name="amount" required>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="field"><label>每几个月一笔</label>
+      <select name="interval_months">
+        <option value="1">每月</option>
+        <option value="2">每 2 个月</option>
+        <option value="3">每 3 个月（季度）</option>
+        <option value="6">每 6 个月（半年）</option>
+        <option value="12">每 12 个月（年）</option>
+      </select>
+    </div>
+    <div class="field"><label>起始月</label>
+      <input type="month" name="start_month" value="{{ this_month }}" required>
+    </div>
+    <div class="field"><label>结束月（留空 = 一直有效）</label>
+      <input type="month" name="end_month">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="field"><label>规则名（留空 = 用分类名）</label>
+      <input name="name" placeholder="如：房租收入">
+    </div>
+    <div class="field"><label>标签（可留空/新建）</label>
+      <input name="tag_name" list="rule-tag-options" placeholder="如：出租">
+      <datalist id="rule-tag-options">
+        {% for t in tags %}<option value="{{ t.name }}">{% endfor %}
+      </datalist>
+    </div>
+    <div class="field"><label>备注（写进每条生成的记录）</label>
+      <input name="note" placeholder="可留空">
+    </div>
+  </div>
+  <p class="rule-preview muted" id="rule-preview">起始月填历史月份可以顺带回补，保存前这里会显示将补记多少条。</p>
+  <button class="btn" type="submit">添加规则</button>
+</form>
+
+{% for kind in kinds %}
+{% set kind_rows = rows | selectattr("rule.kind", "equalto", kind) | list %}
+{% if kind_rows %}
+<h3 class="city-group">{{ kind }}规则</h3>
+{% for row in kind_rows %}
+{% set r = row.rule %}
+<div class="card rule-row {% if not r.active %}rule-off{% endif %}">
+  <form method="post" action="{{ url_for('expenses.edit_rule', rule_id=r.id) }}" class="rule-edit">
+    <input type="hidden" name="kind" value="{{ r.kind }}">
+    <input name="name" value="{{ r.name }}" class="rule-name" required>
+    {{ category_select(r.kind, r.category_id) }}
+    <input type="number" step="0.01" min="0.01" name="amount" value="{{ r.amount }}" class="rule-amount" required>
+    <select name="interval_months" class="rule-interval">
+      {% for n in [1, 2, 3, 6, 12] %}
+      <option value="{{ n }}" {% if r.interval_months == n %}selected{% endif %}>
+        {{ '每月' if n == 1 else ('每年' if n == 12 else '每 ' ~ n ~ ' 个月') }}
+      </option>
+      {% endfor %}
+    </select>
+    <input type="month" name="start_month" value="{{ r.start_month.strftime('%Y-%m') }}" required>
+    <input type="month" name="end_month" value="{{ r.end_month.strftime('%Y-%m') if r.end_month else '' }}"
+           placeholder="不限">
+    <input name="tag_name" value="{{ r.tag.name if r.tag else '' }}" list="rule-tag-options"
+           class="rule-tag" placeholder="标签">
+    <input name="note" value="{{ r.note or '' }}" class="rule-note" placeholder="备注">
+    <button class="btn btn-sm" type="submit">保存</button>
+  </form>
+  <div class="rule-meta muted">
+    已生成 <strong>{{ row.generated }}</strong> 条{% if row.next %} · 下一笔 {{ row.next.strftime('%Y-%m-%d') }}{% elif r.active %} · 已到结束月{% else %} · 已停用{% endif %}
+  </div>
+  <div class="rule-actions">
+    <form method="post" action="{{ url_for('expenses.toggle_rule', rule_id=r.id) }}">
+      <button class="btn btn-sm btn-ghost" type="submit">{{ '停用' if r.active else '启用' }}</button>
+    </form>
+    <form method="post" action="{{ url_for('expenses.delete_rule', rule_id=r.id) }}"
+          onsubmit="return confirm('删除规则「{{ r.name }}」？已生成的 {{ row.generated }} 条记录会转为手工记录保留。');">
+      <button class="btn btn-sm btn-danger" type="submit">删规则</button>
+    </form>
+    <form method="post" action="{{ url_for('expenses.delete_rule', rule_id=r.id) }}"
+          onsubmit="return confirm('连同它生成的 {{ row.generated }} 条记录一起删掉？这一步不可撤销。');">
+      <input type="hidden" name="purge" value="1">
+      <button class="btn btn-sm btn-danger" type="submit">连记录一起删</button>
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+{% if not rows %}
+<p class="muted">还没有配过固定收支规则。</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 收支切换时，只显示对应类型的分类下拉（两个下拉都在 DOM 里，靠 disabled 保证只提交一个）。
+const createForm = document.getElementById('rule-create');
+const kindSelect = document.getElementById('rule-kind');
+const catSelects = createForm.querySelectorAll('.rule-cat');
+
+function syncCategorySelects() {
+  catSelects.forEach(sel => {
+    const on = sel.dataset.kind === kindSelect.value;
+    sel.hidden = !on;
+    sel.disabled = !on;
+  });
+}
+kindSelect.addEventListener('change', syncCategorySelects);
+syncCategorySelects();
+
+// 实时预览：保存前先说清楚会补记多少条，别让填错起始月的人事后才发现多了几十条。
+const previewBox = document.getElementById('rule-preview');
+const previewHint = previewBox.textContent;
+let previewTimer = null;
+
+function refreshPreview() {
+  const amount = createForm.amount.value;
+  const start = createForm.start_month.value;
+  if (!amount || !start) { previewBox.textContent = previewHint; return; }
+  const params = new URLSearchParams({
+    amount: amount,
+    interval_months: createForm.interval_months.value,
+    start_month: start,
+    end_month: createForm.end_month.value || '',
+  });
+  fetch('{{ url_for("expenses.rule_preview") }}?' + params)
+    .then(res => res.ok ? res.json() : null)
+    .then(data => {
+      if (!data || !data.ok) { previewBox.textContent = previewHint; return; }
+      if (!data.count) { previewBox.textContent = '保存后暂时不会补记（起始月还没到）。'; return; }
+      previewBox.textContent = `保存后将补记 ${data.count} 条：${data.first} ~ ${data.last}，合计 ¥${data.total.toFixed(2)}。`;
+    })
+    .catch(() => { previewBox.textContent = previewHint; });
+}
+
+['amount', 'interval_months', 'start_month', 'end_month'].forEach(name => {
+  createForm[name].addEventListener('input', () => {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(refreshPreview, 250);
+  });
+});
+</script>
+{% endblock %}

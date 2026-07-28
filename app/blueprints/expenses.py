@@ -5,15 +5,18 @@ import datetime as dt
 from decimal import Decimal, InvalidOperation
 from itertools import groupby
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
+from flask import (Blueprint, render_template, request, redirect, url_for, flash, abort,
+                   jsonify, current_app)
 from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.blueprints._json import safe_json
-from app.models.expense import (ExpenseCategory, ExpenseTag, ExpenseRecord, EXPENSE_KINDS,
-                                seed_default_categories, guess_icon)
+from app.models.expense import (ExpenseCategory, ExpenseTag, ExpenseRecord, ExpenseRule,
+                                EXPENSE_KINDS, TAG_GROUPS, seed_default_categories,
+                                seed_tag_groups, guess_icon)
 from app.services.expense_import import parse_rows, import_rows
+from app.services.expense_recurring import materialize, next_due, preview, run_if_stale
 from app.services.expense_stats import (monthly_stats, yearly_stats, overview_stats,
                                          trend_stats, trend_year_records)
 
@@ -23,10 +26,22 @@ bp = Blueprint("expenses", __name__, url_prefix="/expenses")
 @bp.before_request
 def _ensure_categories():
     seed_default_categories()
+    seed_tag_groups()
+
+
+@bp.before_request
+def _catch_up_recurring():
+    """进日常消费模块时把固定收支补到今天。每天首次请求才真跑，其余直接返回。"""
+    run_if_stale(current_app)
 
 
 def _parse_date(s):
     return dt.datetime.strptime(s, "%Y-%m-%d").date()
+
+
+def _parse_month(s):
+    """<input type="month"> 交上来的 YYYY-MM → 当月 1 号。"""
+    return dt.datetime.strptime(s, "%Y-%m").date().replace(day=1)
 
 
 def _category_tree(kind=None):
@@ -61,6 +76,22 @@ def _board_json(board):
             node["yoy_pct"] = float(b["yoy"]["pct"]) if b["yoy"]["pct"] is not None else None
         out.append(node)
     return out
+
+
+def _tag_sections():
+    """分类管理页的标签分组展示：[(组名或 None, [标签,...]), ...]，按 TAG_GROUPS 定义的
+    顺序排列；未分组统一放最后一节（组名 None，模板显示「未分组」）。TAG_GROUPS 改动后
+    库里可能还残留旧组名（比如某个组被整个下掉），这类"野"组名也照样展示、排在末尾，
+    不会因为不在当前 TAG_GROUPS 里就把标签悄悄藏起来。"""
+    by_group = {}
+    for t in ExpenseTag.query.order_by(ExpenseTag.name).all():
+        by_group.setdefault(t.group_name, []).append(t)
+    sections = [(g, by_group[g]) for g in TAG_GROUPS if by_group.get(g)]
+    stray = sorted(g for g in by_group if g is not None and g not in TAG_GROUPS)
+    sections += [(g, by_group[g]) for g in stray]
+    if by_group.get(None):
+        sections.append((None, by_group[None]))
+    return sections
 
 
 def _recent_years(n=10):
@@ -219,8 +250,11 @@ def edit(record_id):
 @bp.route("/<int:record_id>/delete", methods=["POST"])
 def delete(record_id):
     record = db.get_or_404(ExpenseRecord, record_id)
+    is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     db.session.delete(record)
     db.session.commit()
+    if is_xhr:
+        return jsonify(ok=True)
     flash("已删除记录")
     return redirect(url_for("expenses.list"))
 
@@ -296,6 +330,8 @@ def trends():
         "dimensions": [{
             "key": d["key"], "type": d["type"], "kind": d["kind"], "name": d["name"],
             "icon": d["icon"], "parent": d["parent"], "parent_key": d.get("parent_key"),
+            "group": d.get("group"), "group_icon": d.get("group_icon"),
+            "subgroup": d.get("subgroup"),
             "total": float(d["total"]),
             "amounts": [float(a) for a in d["amounts"]], "counts": d["counts"],
         } for d in s["dimensions"]],
@@ -377,7 +413,7 @@ def categories():
         flash("已添加分类")
         return redirect(url_for("expenses.categories"))
     return render_template("expenses/categories.html", categories=_category_tree(),
-                           tags=ExpenseTag.query.order_by(ExpenseTag.name).all())
+                           tag_sections=_tag_sections(), tag_groups=TAG_GROUPS)
 
 
 @bp.route("/categories/<int:cat_id>/edit", methods=["POST"])
@@ -410,6 +446,18 @@ def delete_category(cat_id):
     return redirect(url_for("expenses.categories"))
 
 
+@bp.route("/tags/<int:tag_id>/edit", methods=["POST"])
+def edit_tag(tag_id):
+    tag = db.get_or_404(ExpenseTag, tag_id)
+    group = request.form.get("group_name") or None
+    if group is not None and group not in TAG_GROUPS:
+        abort(400)
+    tag.group_name = group
+    db.session.commit()
+    flash(f"#{tag.name} 已归到「{group or '未分组'}」")
+    return redirect(url_for("expenses.categories"))
+
+
 @bp.route("/tags/<int:tag_id>/delete", methods=["POST"])
 def delete_tag(tag_id):
     tag = db.get_or_404(ExpenseTag, tag_id)
@@ -421,3 +469,162 @@ def delete_tag(tag_id):
     db.session.commit()
     flash("已删除标签")
     return redirect(url_for("expenses.categories"))
+
+
+# --- 固定收支规则 ---------------------------------------------------------
+
+def _flat_category_options():
+    """规则表单用的扁平分类列表。逐行编辑用一个下拉就够，不值得为它再搭一套级联。"""
+    options = []
+    for top in _category_tree():
+        options.append({"id": top.id, "kind": top.kind,
+                        "label": f"{top.icon or ''} {top.name}".strip()})
+        for sub in top.children:
+            options.append({"id": sub.id, "kind": sub.kind,
+                            "label": f"{top.name} / {sub.icon or ''} {sub.name}".strip()})
+    return options
+
+
+def _apply_rule_form(rule):
+    """把表单写进 rule；成功返回 None，失败返回错误信息。"""
+    kind = request.form.get("kind")
+    if kind not in EXPENSE_KINDS:
+        abort(400)
+    category = db.session.get(ExpenseCategory, request.form.get("category_id", type=int) or 0)
+    if category is None or category.kind != kind:
+        return "请选择有效的分类"
+    try:
+        amount = Decimal(request.form["amount"])
+    except (InvalidOperation, KeyError):
+        return "金额格式不对"
+    if amount <= 0:
+        return "金额要大于 0"
+    interval = request.form.get("interval_months", type=int) or 1
+    if not 1 <= interval <= 60:
+        return "间隔月数要在 1~60 之间"
+    try:
+        start_month = _parse_month(request.form["start_month"])
+    except (ValueError, KeyError):
+        return "请填写起始月"
+    end_month = None
+    if (request.form.get("end_month") or "").strip():
+        try:
+            end_month = _parse_month(request.form["end_month"])
+        except ValueError:
+            return "结束月格式不对"
+        if end_month < start_month:
+            return "结束月不能早于起始月"
+
+    tag_name = (request.form.get("tag_name") or "").strip()
+    tag = None
+    if tag_name:
+        tag = ExpenseTag.query.filter_by(name=tag_name).first()
+        if tag is None:
+            tag = ExpenseTag(name=tag_name)
+            db.session.add(tag)
+            db.session.flush()
+
+    rule.name = (request.form.get("name") or "").strip() or category.name
+    rule.kind = kind
+    rule.category_id = category.id
+    rule.tag_id = tag.id if tag else None
+    rule.amount = amount
+    rule.interval_months = interval
+    rule.start_month = start_month
+    rule.end_month = end_month
+    rule.note = request.form.get("note") or None
+    return None
+
+
+@bp.route("/rules", methods=["GET", "POST"])
+def rules():
+    if request.method == "POST":
+        rule = ExpenseRule()
+        error = _apply_rule_form(rule)
+        if error:
+            db.session.rollback()
+            flash(error)
+            return redirect(url_for("expenses.rules"))
+        db.session.add(rule)
+        db.session.commit()
+        created = materialize(rule)
+        flash(f"已添加规则「{rule.name}」" + (f"，补记 {len(created)} 条" if created else ""))
+        return redirect(url_for("expenses.rules"))
+
+    today = dt.date.today()
+    rows = [{
+        "rule": rule,
+        "generated": ExpenseRecord.query.filter_by(rule_id=rule.id).count(),
+        "next": next_due(rule, today) if rule.active else None,
+    } for rule in ExpenseRule.query.order_by(ExpenseRule.active.desc(), ExpenseRule.kind,
+                                             ExpenseRule.id)]
+    return render_template("expenses/rules.html", rows=rows, kinds=EXPENSE_KINDS,
+                           flat_categories=_flat_category_options(),
+                           this_month=today.strftime("%Y-%m"),
+                           tags=ExpenseTag.query.order_by(ExpenseTag.name).all())
+
+
+@bp.route("/rules/preview")
+def rule_preview():
+    """建规则前算一眼会补多少条——纯计算，不写库。"""
+    try:
+        draft = ExpenseRule(
+            amount=Decimal(request.args.get("amount") or "0"),
+            interval_months=request.args.get("interval_months", type=int) or 1,
+            start_month=_parse_month(request.args["start_month"]),
+            end_month=(_parse_month(request.args["end_month"])
+                       if (request.args.get("end_month") or "").strip() else None),
+        )
+    except (InvalidOperation, ValueError, KeyError):
+        return jsonify(ok=False), 400
+    p = preview(draft)
+    return jsonify(ok=True, count=p["count"], total=float(p["total"]),
+                   first=p["first"].isoformat() if p["first"] else None,
+                   last=p["last"].isoformat() if p["last"] else None)
+
+
+@bp.route("/rules/<int:rule_id>/edit", methods=["POST"])
+def edit_rule(rule_id):
+    rule = db.get_or_404(ExpenseRule, rule_id)
+    error = _apply_rule_form(rule)
+    if error:
+        db.session.rollback()
+        flash(error)
+        return redirect(url_for("expenses.rules"))
+    db.session.commit()
+    # 改金额只影响以后：已生成的记录留着当时的数，因为那才是当时真实发生的。
+    created = materialize(rule)
+    flash(f"已更新规则「{rule.name}」" + (f"，补记 {len(created)} 条" if created else ""))
+    return redirect(url_for("expenses.rules"))
+
+
+@bp.route("/rules/<int:rule_id>/toggle", methods=["POST"])
+def toggle_rule(rule_id):
+    rule = db.get_or_404(ExpenseRule, rule_id)
+    rule.active = not rule.active
+    db.session.commit()
+    if rule.active:
+        created = materialize(rule)
+        flash(f"已启用「{rule.name}」" + (f"，补记 {len(created)} 条" if created else ""))
+    else:
+        flash(f"已停用「{rule.name}」，已生成的记录保留")
+    return redirect(url_for("expenses.rules"))
+
+
+@bp.route("/rules/<int:rule_id>/delete", methods=["POST"])
+def delete_rule(rule_id):
+    """删规则时顺带给一条后悔路：连它生成的记录一起删掉。"""
+    rule = db.get_or_404(ExpenseRule, rule_id)
+    name = rule.name
+    generated = ExpenseRecord.query.filter_by(rule_id=rule_id)
+    if request.form.get("purge"):
+        removed = generated.delete(synchronize_session=False)
+        message = f"已删除规则「{name}」及它生成的 {removed} 条记录"
+    else:
+        # 记录留下，但要断开关联，否则外键指向一条已经不存在的规则。
+        generated.update({"rule_id": None, "source": "manual"}, synchronize_session=False)
+        message = f"已删除规则「{name}」，它生成的记录转为手工记录保留"
+    db.session.delete(rule)
+    db.session.commit()
+    flash(message)
+    return redirect(url_for("expenses.rules"))

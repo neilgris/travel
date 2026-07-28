@@ -370,7 +370,11 @@ def trend_stats():
     - dimensions：每项 {key, type(cat1/cat2/tag), kind, name, icon, parent, total, amounts[], counts[]}，
       amounts/counts 与 years 一一对应，某年无消费补 0；
     - default_key：累计金额最高的维度，进页面默认选中。
-    标签跨支出/收入汇总，kind 为 None。无记录时三者分别为 [] / [] / None。"""
+    标签跨支出/收入汇总，kind 为 None，另带两级归属供走势页左栏缩进展示：
+    - group/group_icon = 它花得最多的那个一级分类（标签不挂在分类树上，只能按金额推）；
+    - subgroup = 手工设的标签组（菜系/火锅/甜品饮品…，见 ExpenseTag.group_name），未设为 None。
+    标签排序：一级分类组合计 → 标签组合计（未分组的沉底）→ 标签自身金额，均降序。
+    无记录时三者分别为 [] / [] / None。"""
     records = ExpenseRecord.query.all()
     if not records:
         return {"years": [], "dimensions": [], "default_key": None}
@@ -379,6 +383,8 @@ def trend_stats():
     year_idx = {y: i for i, y in enumerate(years)}
     n = len(years)
     dims = {}
+    tag_by_top = {}   # 标签 key → {一级分类 id: 该标签花在这个一级分类下的金额}
+    tops = {}         # 一级分类 id → 分类对象（算标签归属时取名字/图标用）
 
     def bucket(key, **meta):
         d = dims.get(key)
@@ -389,6 +395,7 @@ def trend_stats():
     for r in records:
         i = year_idx[r.date.year]
         top = _top_category(r.category)
+        tops[top.id] = top
         d1 = bucket(f"cat1-{top.id}", type="cat1", kind=top.kind, name=top.name, icon=top.icon, parent=None)
         d1["amounts"][i] += r.amount
         d1["counts"][i] += 1
@@ -400,17 +407,46 @@ def trend_stats():
             d2["amounts"][i] += r.amount
             d2["counts"][i] += 1
         if r.tag:
-            dt_ = bucket(f"tag-{r.tag_id}", type="tag", kind=None, name=r.tag.name, icon=None, parent=None)
+            dt_ = bucket(f"tag-{r.tag_id}", type="tag", kind=None, name=r.tag.name, icon=None,
+                         parent=None, subgroup=r.tag.group_name)
             dt_["amounts"][i] += r.amount
             dt_["counts"][i] += 1
+            by_top = tag_by_top.setdefault(dt_["key"], {})
+            by_top[top.id] = by_top.get(top.id, ZERO) + r.amount
 
     for d in dims.values():
         d["amounts"] = [_q(a) for a in d["amounts"]]
         d["total"] = _q(sum(d["amounts"], ZERO))
 
+    # 标签归到它花得最多的那个一级分类；金额并列时用分类 id 定序，保证结果稳定
+    group_total, sub_total = {}, {}
+    for d in dims.values():
+        if d["type"] != "tag":
+            continue
+        by_top = tag_by_top.get(d["key"], {})
+        top_id = max(by_top, key=lambda cid: (by_top[cid], -cid))
+        top = tops[top_id]
+        d["group"], d["group_icon"] = top.name, top.icon
+        group_total[top.name] = group_total.get(top.name, ZERO) + d["total"]
+        if d["subgroup"]:
+            sub_key = (top.name, d["subgroup"])
+            sub_total[sub_key] = sub_total.get(sub_key, ZERO) + d["total"]
+
+    def sub_rank(d):
+        """标签在所属一级分类内的次级排序：有标签组的按组合计降序聚在一起，
+        未分组的（subgroup 为 None）不成组，统一沉到该分类最后。"""
+        if not d.get("subgroup"):
+            return (1, ZERO, "")
+        return (0, -sub_total[(d["group"], d["subgroup"])], d["subgroup"])
+
     default_key = max(dims.values(), key=lambda d: d["total"])["key"]
+    # 分类维度组内按金额降序；标签先按一级分类的合计聚成大组，组内再按标签组聚成小组，
+    # 最后按标签自身金额降序
     ordered = sorted(dims.values(),
-                     key=lambda d: (_TREND_GROUP_RANK.get((d["type"], d["kind"]), 9), -d["total"]))
+                     key=lambda d: (_TREND_GROUP_RANK.get((d["type"], d["kind"]), 9),
+                                    -group_total.get(d.get("group"), ZERO),
+                                    sub_rank(d) if d["type"] == "tag" else (0, ZERO, ""),
+                                    -d["total"]))
     return {"years": years, "dimensions": ordered, "default_key": default_key}
 
 

@@ -26,13 +26,13 @@
     </div>
     <div class="field">
       <label>分类</label>
-      <div class="msel" data-label="分类">
+      <div class="msel" data-label="分类" id="exp-cat-msel">
         <button type="button" class="msel-toggle">分类</button>
         <div class="msel-panel">
           {% for top in categories %}
-          <label class="msel-opt"><input type="checkbox" name="category_id" value="{{ top.id }}" {% if top.id in filters.category_id %}checked{% endif %}> {{ top.icon or '' }} {{ top.name }}</label>
+          <label class="msel-opt" data-kind="{{ top.kind }}"><input type="checkbox" name="category_id" value="{{ top.id }}" {% if top.id in filters.category_id %}checked{% endif %}> {{ top.icon or '' }} {{ top.name }}</label>
           {% for sub in top.children %}
-          <label class="msel-opt msel-sub"><input type="checkbox" name="category_id" value="{{ sub.id }}" {% if sub.id in filters.category_id %}checked{% endif %}> {{ sub.icon or '' }} {{ sub.name }}</label>
+          <label class="msel-opt msel-sub" data-kind="{{ top.kind }}"><input type="checkbox" name="category_id" value="{{ sub.id }}" {% if sub.id in filters.category_id %}checked{% endif %}> {{ sub.icon or '' }} {{ sub.name }}</label>
           {% endfor %}
           {% endfor %}
         </div>

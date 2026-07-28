@@ -126,7 +126,8 @@ function expFmtTag(d) {  // 标签榜：#标签 / N 笔
 }
 
 // —— 分类走势页：选一个维度（一级/二级/标签）看它逐年金额折线，点某年在右侧看当年 Top 消费 ——
-// 选择器是联动式：一级→二级两级下拉，或标签可输入联想；维度太多时不再挤在一个长下拉里。
+// 左侧一栏平铺所有维度并各带累计金额：分类按「支出/收入 → 一级 → 二级」缩进列出，
+// 标签单独一列表，两者用顶部按钮切换。
 const TREND_LINE = '#e76f51';
 const TREND_LINE_SEL = '#c1440e';  // 选中年份的高亮点
 
@@ -141,57 +142,87 @@ function expTrendLabel(d) {
 // data: {years:[…], dimensions:[{key,type,kind,name,icon,parent,parent_key,total,amounts[],counts[]}], default_key}
 function expTrends(data) {
   const el = id => document.getElementById(id);
-  const cat1Sel = el('trendCat1'), cat2Sel = el('trendCat2');
-  const tagInput = el('trendTagInput'), tagList = el('trendTagList');
+  const sideList = el('trendSideList');
   const title = el('trendChartTitle'), tbody = el('trendTableBody');
   const topTitle = el('trendTopTitle'), topList = el('trendTopList');
-  if (!cat1Sel) return;
+  if (!sideList) return;
 
   const dims = data.dimensions;
   const byKey = Object.fromEntries(dims.map(d => [d.key, d]));
   const cat1s = dims.filter(d => d.type === 'cat1');
   const tags = dims.filter(d => d.type === 'tag');
-  const tagByName = Object.fromEntries(tags.map(d => [d.name, d]));
   const childrenOf = {};  // 一级 key → [二级维度]
   dims.filter(d => d.type === 'cat2').forEach(d => (childrenOf[d.parent_key] ||= []).push(d));
 
   let curKey = data.default_key;
+  let mode = byKey[curKey].type === 'tag' ? 'tag' : 'cat';
   let selYear = data.years[data.years.length - 1];  // 默认看最后一年
 
-  // ---- 填充选择器 ----
-  cat1Sel.innerHTML = [['支出', '支出'], ['收入', '收入']].map(([kind, label]) => {
-    const items = cat1s.filter(d => d.kind === kind);
-    if (!items.length) return '';
-    return `<optgroup label="${label}">` +
-      items.map(d => `<option value="${d.key}">${expTrendLabel(d)}</option>`).join('') + '</optgroup>';
-  }).join('');
-  tagList.innerHTML = tags.map(d => `<option value="${expEsc(d.name)}">`).join('');
-
-  function fillCat2(cat1Key) {
-    const parent = byKey[cat1Key];
-    const kids = childrenOf[cat1Key] || [];
-    cat2Sel.innerHTML = `<option value="${cat1Key}">整个「${expEsc(parent.name)}」</option>` +
-      kids.map(d => `<option value="${d.key}">${expIconPrefix(d.icon)}${expEsc(d.name)}</option>`).join('');
+  // ---- 左侧维度列表 ----
+  // extraClass 决定这一行的层级样式：'' 顶格；'trend-item-sub' 是真·下级（分类模式的二级，
+  // 缩进且降一档字号/颜色）；'trend-item-nested' 只缩进不降级（标签模式组内的标签——它们
+  // 跟未分组的标签是同一类东西，只是被归了组，不该显得低人一等）。
+  function sideRow(d, extraClass) {
+    const label = d.type === 'tag' ? '#' + expEsc(d.name) : expIconPrefix(d.icon) + expEsc(d.name);
+    return `<button type="button" class="trend-item${extraClass ? ' ' + extraClass : ''}" data-key="${d.key}">
+      <span class="trend-item-name">${label}</span>
+      <span class="trend-item-amt">${expFmt0(d.total)}</span>
+    </button>`;
   }
 
-  function setMode(mode) {
-    document.querySelectorAll('.trend-mode-btn').forEach(b => b.classList.toggle('is-active', b.dataset.mode === mode));
-    document.querySelectorAll('[data-mode-panel]').forEach(p => { p.hidden = p.dataset.modePanel !== mode; });
+  // 连续同 group 的项归一段，段头是组名（tags 已按组聚好序，不用再排）
+  function groupRuns(items, labelOf) {
+    return items.reduce((runs, d) => {
+      const label = labelOf(d);
+      const last = runs[runs.length - 1];
+      if (last && last.label === label) last.items.push(d);
+      else runs.push({ label, items: [d] });
+      return runs;
+    }, []);
   }
 
-  // 根据 curKey 把选择器 UI 摆到对应位置（首次进入 & 切模式时用）
-  function syncPickers() {
-    const d = byKey[curKey];
-    if (d.type === 'tag') {
-      setMode('tag');
-      tagInput.value = d.name;
+  function renderSide() {
+    if (mode === 'tag') {
+      // 标签不挂在分类树上，分两级：一级分类（按金额推）→ 标签组（手工设的 group_name）→ 标签。
+      // 未设标签组的直接挂在一级分类下、顶格（对应分类模式里的一级行）；有组的标签缩进一级。
+      sideList.innerHTML = groupRuns(tags, d => d.group).map(run =>
+        `<div class="trend-grp">${expIconPrefix(run.items[0].group_icon)}${expEsc(run.label)}</div>` +
+        groupRuns(run.items, d => d.subgroup || '').map(sub =>
+          (sub.label ? `<div class="trend-grp trend-grp-sub">${expEsc(sub.label)}</div>` : '') +
+          sub.items.map(d => sideRow(d, sub.label ? 'trend-item-nested' : '')).join('')
+        ).join('')
+      ).join('') || '<p class="muted trend-side-empty">还没有用过标签。</p>';
     } else {
-      setMode('cat');
-      const cat1Key = d.type === 'cat2' ? d.parent_key : d.key;
-      cat1Sel.value = cat1Key;
-      fillCat2(cat1Key);
-      cat2Sel.value = d.key;
+      // 一级下面紧跟它的二级；一级本身也可点（= 含其所有二级的合计）
+      sideList.innerHTML = ['支出', '收入'].map(kind => {
+        const items = cat1s.filter(d => d.kind === kind);
+        if (!items.length) return '';
+        return `<div class="trend-grp">${kind}</div>` + items.map(d =>
+          sideRow(d, '') + (childrenOf[d.key] || []).map(sub => sideRow(sub, 'trend-item-sub')).join('')
+        ).join('');
+      }).join('');
     }
+    markSide(true);
+  }
+
+  function markSide(scrollIntoView) {
+    let sel = null;
+    sideList.querySelectorAll('.trend-item').forEach(b => {
+      const on = b.dataset.key === curKey;
+      b.classList.toggle('is-sel', on);
+      if (on) sel = b;
+    });
+    // 选中项可能在长列表里被卷到视野外（首屏默认项、切换维度类型时）。
+    // 只滚侧栏这一个容器——用 scrollIntoView 会连整个页面一起滚上去。
+    if (scrollIntoView && sel) {
+      sideList.scrollTop = sel.offsetTop - sideList.offsetTop - sideList.clientHeight / 2 + sel.offsetHeight / 2;
+    }
+  }
+
+  function setMode(next) {
+    mode = next;
+    document.querySelectorAll('.trend-mode-btn').forEach(b => b.classList.toggle('is-active', b.dataset.mode === mode));
+    renderSide();
   }
 
   // ---- 折线图 ----
@@ -273,23 +304,29 @@ function expTrends(data) {
 
   // ---- 事件 ----
   document.querySelectorAll('.trend-mode-btn').forEach(btn => btn.addEventListener('click', () => {
-    const mode = btn.dataset.mode;
-    setMode(mode);
-    if (mode === 'tag') { curKey = (tagByName[tagInput.value] || tags[0]).key; tagInput.value = byKey[curKey].name; }
-    else { curKey = cat2Sel.value || cat1Sel.value || cat1s[0].key; }
-    renderAll();
+    if (btn.dataset.mode === mode) return;
+    // 切过去默认选金额最高的一项。不能直接取列表第一个——标签是先按所属组排的，
+    // 头一个只是最大那组的头名，未必是全局最大的标签。
+    const pool = btn.dataset.mode === 'tag' ? tags : cat1s;
+    const top = pool.reduce((a, b) => (b.total > a.total ? b : a), pool[0]);
+    // 先定好选中项再重画列表——renderSide 要靠 curKey 把选中项标出来并滚到可见处
+    if (top) { curKey = top.key; setMode(btn.dataset.mode); renderAll(); }
+    else setMode(btn.dataset.mode);
   }));
-  cat1Sel.addEventListener('change', () => { fillCat2(cat1Sel.value); curKey = cat1Sel.value; renderAll(); });
-  cat2Sel.addEventListener('change', () => { curKey = cat2Sel.value; renderAll(); });
-  tagInput.addEventListener('change', () => {
-    const d = tagByName[tagInput.value];
-    if (d) { curKey = d.key; renderAll(); }
+
+  sideList.addEventListener('click', e => {
+    const btn = e.target.closest('.trend-item[data-key]');
+    if (!btn || btn.dataset.key === curKey) return;
+    curKey = btn.dataset.key;
+    markSide();
+    renderAll();
   });
+
   tbody.addEventListener('click', e => {
     const row = e.target.closest('.trend-row[data-year]');
     if (row) { selYear = +row.dataset.year; renderAll(); }
   });
 
-  syncPickers();
+  setMode(mode);
   renderAll();
 }

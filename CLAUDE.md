@@ -48,7 +48,7 @@ app/
 ├── config.py          配置（SECRET_KEY、DB 路径，env 可覆盖）
 ├── extensions.py      db 等扩展实例
 ├── blueprints/        路由层（按功能分蓝图，只管 HTTP）
-│   ├── main.py        首页地球 / uploads 静态
+│   ├── main.py        默认入口 `/`（重定向到日常消费）、地球首页 `/travel`、uploads 静态
 │   ├── trips.py       旅程 CRUD、详情、统计、记录录入
 │   └── settings.py    同行人 / 城市管理
 ├── models/            数据层（SQLAlchemy 模型，只管数据）
@@ -63,6 +63,7 @@ app/
 │   ├── distance.py    旅程里程（行程段城市间 haversine 直线距离累加）
 │   ├── uploads.py     图片上传保存
 │   ├── import_expense.py  记账 .xls 解析与匹配（导入用）
+│   ├── expense_recurring.py 固定收支水位线补记（进模块时把缺的月份补到今天）
 │   └── globe.py       首页地球数据（Leg→弧线 + 城市点）
 ├── templates/         Jinja2 模板（trips/ settings/ + base.html + home.html 地球页）
 └── static/            style.css + form.js + 地球前端（globe-home 控制器 / globe-gl 写实·卫星 / globe-d3 矢量）；vendor/ 离线 Globe.gl·three·d3·topojson·地球贴图·地形·矢量详情层（land-50m/admin1/lakes/rivers 放大懒加载；卫星瓦片走 Esri，联网）

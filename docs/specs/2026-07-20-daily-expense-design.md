@@ -9,7 +9,10 @@
 
 顶栏左上角由单一品牌变成**两个模块入口**（`✈ 旅行记录` / `💰 日常消费`），右侧子菜单随当前模块切换。两个模块各自独立，数据层零外键关联。
 
-**不做**（YAGNI）：预算、账户与余额、多币种、成员/项目、附件图片、与旅程花费打通。
+房租、公积金这类每月/每季度固定的收支不用手记——配一条规则，进模块时自动补齐缺的记录（第 9 节）。
+
+**不做**（YAGNI）：预算、账户与余额、多币种、成员/项目、附件图片、与旅程花费打通。固定收支规则只支持
+「每 N 个月、固定落 1 号」，不做按周/按任意日期的周期。
 
 ## 2. 数据来源与列映射
 
@@ -73,20 +76,43 @@
 | `tag_id` | Integer | FK → `expense_tag.id`, NULL | 一条流水最多一个标签 |
 | `amount` | Numeric(12,2) | NOT NULL | **一律存正数**，正负由 `kind` 决定；Python 侧 `Decimal` |
 | `note` | Text | NULL | 备注（「山姆」「muji」「北投停车」） |
-| `source` | String(8) | NOT NULL, default `manual` | `manual` / `import` |
+| `source` | String(8) | NOT NULL, default `manual` | `manual` / `import` / `auto`（固定收支规则生成） |
 | `fingerprint` | String(40) | NULL, UNIQUE | 导入去重指纹；手动录入为 NULL（SQLite 允许多 NULL 并存） |
+| `rule_id` | Integer | FK → `expense_rule.id`, NULL | 由哪条固定收支规则生成；手工与导入为 NULL |
 | `created_at` | DateTime | NOT NULL, default now | 同日多条的稳定排序依据 |
 
-- 索引：`(kind, date)`、`date`、`category_id`、`tag_id`
+- 索引：`(kind, date)`、`date`、`category_id`、`tag_id`、`rule_id`
+- 唯一约束 `(rule_id, date)`：一条规则同一天只可能有一笔，自动补记的幂等由数据库兜底。SQLite 里 `NULL != NULL`，手工/导入记录（`rule_id` 为空）互不影响
 - 默认排序：`ORDER BY date DESC, created_at DESC`
 
-### 3.4 关联关系
+### 3.4 `expense_rule` 固定收支规则
+
+房租、公积金这类每月/每季度雷打不动的收支，配一条规则由系统自动补记，见第 10 节。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| `id` | Integer | PK | |
+| `name` | String(50) | NOT NULL | 规则名，列表展示用；建规则时留空则取分类名 |
+| `kind` | String(4) | NOT NULL | `支出` / `收入`，与分类一致 |
+| `category_id` | Integer | FK → `expense_category.id`, NOT NULL | |
+| `tag_id` | Integer | FK → `expense_tag.id`, NULL | |
+| `amount` | Numeric(12,2) | NOT NULL | 每笔金额 |
+| `interval_months` | Integer | NOT NULL, default 1 | 1=每月，3=每季度，12=每年。落在哪几个月由 `start_month` 定相位 |
+| `start_month` | Date | NOT NULL | 起始月，存当月 1 号 |
+| `end_month` | Date | NULL | 结束月（含），留空 = 一直有效 |
+| `note` | Text | NULL | 写进每条生成记录的备注 |
+| `active` | Boolean | NOT NULL, default true | 停用后不再补记，已生成的记录保留 |
+| `created_at` | DateTime | NOT NULL, default now | |
+
+**一条规则 = 一个金额 + 一段时间。** 房租涨价就给旧规则填上 `end_month`、另开一条新的，不在单条规则里塞多段金额区间——查询和展示都简单，代价只是规则条数多几行。
+
+### 3.5 关联关系
 
 ```
 expense_category ──┐ 自关联 parent_id (NULL = 一级)
       │ 1          └─< children (二级)
       │ N
-expense_record
+expense_record ──N──1── expense_rule (可空)
       │ N
       │ 1
 expense_tag
@@ -94,9 +120,9 @@ expense_tag
 
 - `ExpenseCategory 1 ─ N ExpenseRecord`（一条流水一个分类）
 - `ExpenseCategory 1 ─ N ExpenseCategory`（一级下挂二级，仅两层）
-- `ExpenseTag 1 ─ N ExpenseRecord`（标签可空）
+- `ExpenseTag 1 ─ N ExpenseRecord`（标签可空）；标签另有 `group_name` 标签组（菜系 / 火锅 / 甜品饮品…，可空），只用于走势页左栏归拢展示，不参与任何统计口径，在分类管理页手工设置
 
-### 3.5 默认分类树
+### 3.6 默认分类树
 
 `DEFAULT_CATEGORIES` 常量，库中分类为空时 seed；导入遇到未知分类自动补建。
 
@@ -139,11 +165,12 @@ sha1("kind|date|一级分类|二级分类|金额|商家|备注|同键序号")
 ## 5. 分层与文件
 
 ```
-app/models/expense.py            ExpenseCategory / ExpenseTag / ExpenseRecord + DEFAULT_CATEGORIES
+app/models/expense.py            ExpenseCategory / ExpenseTag / ExpenseRecord / ExpenseRule + DEFAULT_CATEGORIES
 app/services/expense_import.py   解析两个 sheet → 查建分类/标签 → 指纹去重写入 → 返回统计
 app/services/expense_stats.py    月度、年度、整体统计、分类走势聚合 + 共用聚合小工具（一级/二级分类、标签排行；纯查询，无 HTTP）
+app/services/expense_recurring.py 固定收支的水位线补记：due_dates / next_due / materialize / run_all / preview
 app/blueprints/expenses.py       url_prefix=/expenses
-app/templates/expenses/          list / form / monthly / yearly / overview / trends / import / categories .html
+app/templates/expenses/          list / form / monthly / yearly / overview / trends / import / categories / rules .html
                                  _list_results / _item_row / _inline_edit_form（流水行内编辑片段）
                                  _stats_macros.html（月/年/总览共用 KPI·环图·排行榜宏）
 app/static/expenses-stats.js     月/年/总览/走势共用图表工具（调色板、金额格式化、环图工厂、走势控制器）
@@ -160,10 +187,13 @@ app/static/expenses-stats.js     月/年/总览/走势共用图表工具（调�
 | `GET /expenses/monthly?ym=YYYY-MM` | 当月仪表盘 |
 | `GET /expenses/yearly?year=YYYY` | 年度分析 |
 | `GET /expenses/overview` | 整体统计：跨全部年份的对比看板 |
-| `GET /expenses/trends` | 分类走势：选一个维度（一级/二级分类或标签）看逐年金额折线，点某年在下方多列看当年 Top 50 消费 |
+| `GET /expenses/trends` | 分类走势：左栏选一个维度（一级/二级分类或标签，各带累计金额）看逐年金额折线，点某年在右侧多列看当年 Top 50 消费 |
 | `GET /expenses/trends/records?key=&year=` | 走势页右侧数据源：某维度某年金额最高的前 50 笔（内部 XHR，按需拉取） |
 | `GET,POST /expenses/import` | 上传 `.xls`，写入后展示结果摘要；页内含危险操作区：`POST /expenses/clear` 清空全部或按年清空流水 |
 | `GET,POST /expenses/categories` | 分类树增删改排序 + 标签管理 |
+| `GET,POST /expenses/rules` | 固定收支规则：列表（每条显示已生成条数与下一笔日期）+ 新增表单 |
+| `GET /expenses/rules/preview` | 建规则前算一眼会补多少条、覆盖哪段、合计多少（纯计算，不写库；表单实时调用） |
+| `POST /expenses/rules/<id>/edit`<br>`POST /expenses/rules/<id>/toggle`<br>`POST /expenses/rules/<id>/delete` | 行内改、停用/启用、删除。删除默认把已生成记录转为手工记录保留；带 `purge=1` 则连记录一起删 |
 
 ## 7. 统计口径
 
@@ -195,7 +225,8 @@ app/static/expenses-stats.js     月/年/总览/走势共用图表工具（调�
 
 **分类走势**（`/expenses/trends`）——单维度的逐年走势 + 当年 Top 消费
 
-- 选一个维度：分类模式下一级联动二级（二级下拉含「整个〔一级〕」= 看一级合计），或标签模式可输入联想；分类树含支出与收入两类，标签跨两类汇总
+- 左侧常驻维度栏（顶部「分类 / 标签」切换）：分类模式按「支出 / 收入 → 一级 → 缩进的二级」平铺所有层级（点一级 = 看含其全部二级的合计）；标签模式两级缩进「**一级分类** → **标签组** → 标签」——一级分类按标签花得最多的那个自动推（标签不挂在分类树上），标签组是手工设的 `ExpenseTag.group_name`（菜系 / 火锅 / 甜品饮品…，因为「菜系 vs 火锅」这层语义数据里没有），未设分组的标签直接挂在一级分类下并排在最后；各级均按合计金额降序
+- 每项右侧带累计金额，进页面/切模式自动选中金额最高项并滚到可见处
 - 满宽折线画该维度逐年金额（X 轴为全量记账跨度 first_year..last_year，某年无消费画 0；各维度共用一条时间轴），默认选中累计金额最高的维度
 - 逐年明细表：年份 / 金额 / 同比（涨红降绿，客户端由序列算）/ 笔数，行可点选年份
 - 点折线上任意年份（或点明细表某行）→ 下方按金额**从左到右、从上到下**多列（列宽 300px 自适应，宽屏约 3 列）展示该维度当年 **Top 50** 单笔，标题带当年金额与总笔数
@@ -217,17 +248,43 @@ app/static/expenses-stats.js     月/年/总览/走势共用图表工具（调�
 `base.html` 顶栏左侧改为两个模块入口，当前模块高亮；右侧子菜单按 `request.blueprint` 切换：
 
 - **旅行记录**：旅程 / 足迹 / 创建 / 设置
-- **日常消费**：流水 / 月度 / 年度 / 总览 / 走势 / 导入 / 分类
+- **日常消费**：流水 / 月度 / 年度 / 总览 / 走势 / 导入 / 分类 / 固定
 
-## 9. 测试
+## 9. 固定收支的自动补记
+
+项目是本地手动启动、没有常驻进程的应用，真·定时任务在关机期间照样漏。所以不做调度，改成
+**水位线补记**：规则记着从哪个月开始、每几个月一笔，进日常消费模块时把从起始月到本月之间
+还缺的记录一次性补齐。关机三个月再打开，三笔一起补上，结果与天天开着一样。
+
+- **触发**：`expenses` 蓝图的 `before_request` 调 `run_if_stale(current_app)`，按天节流——
+  水位线存在 `app.config` 而非模块全局，测试里每个 app 实例各算各的。
+- **到期日**：`due_dates` 从 `start_month` 按 `interval_months` 步进，截止到「今天所在月」与
+  `end_month` 中较早者（都含当月）。相位由起始月定：起始 2 月 + 间隔 3 → 2/5/8/11 月。
+- **幂等**：`materialize` 只比对同一 `rule_id` 下已有的日期，只插差集；数据库层还有
+  `(rule_id, date)` 唯一约束兜底。跑一次和跑一百次结果相同。
+- **规则只认自己名下的记录**：不去猜「这个月是不是已经手工记过一笔房租」。判断「是不是同一笔」
+  很主观，误判会造成静默漏记——正是这功能要解决的病根；相比之下多出来的记录在流水里一眼可见、
+  随手可删。建规则前的 `preview` 会先说清楚将补记多少条，避免起始月填错闷头写库。
+- **改金额只影响以后**：已生成的记录保留当时的数，那才是当时真实发生的。涨价靠「旧规则填结束月
+  + 新建一条」表达。
+- **可撤销**：删规则默认把已生成记录转为手工记录保留（`rule_id` 置空、`source` 改 `manual`），
+  带 `purge=1` 则连记录一起删。自动写库的功能必须有干净的后悔路。
+- 自动生成的记录 `source='auto'`，流水行上带 🔁 标记。
+
+## 10. 测试
 
 TDD，`tests/` 与模块一一对应：
 
 - `tests/test_expense_models.py`——两级约束、删除策略、唯一约束
 - `tests/test_expense_import.py`——列映射、日期截断、分类/标签自动建、指纹去重（重复导入零新增）
 - `tests/test_expense_stats.py`——月度/年度各项口径、环比同比边界（除零、无上期数据）
-- `tests/test_expenses_blueprint.py`——列表筛选（含空标签）、增删改（含行内异步编辑）、清空全部/按年、导入流程
+- `tests/test_expense_recurring.py`——`due_dates` 各周期与起止边界、`next_due`、`materialize` 幂等与补缺口、跨月一次补齐、`run_all` 跳过停用规则
+- `tests/test_expenses_blueprint.py`——列表筛选（含空标签）、增删改（含行内异步编辑）、清空全部/按年、导入流程、规则增删改与两种删除口径
 
-## 10. 数据库
+## 11. 数据库
 
 新表由 `db.create_all()` 首次启动自动创建，不触碰既有表，无需迁移（见 DECISIONS D19）。动手前备份 `instance/travel.db`。
+
+`create_all` 只建新表，既不给已有表补列、也不补索引。所以 `app/__init__.py` 里两张手工清单在
+启动时按需补齐（都可重复执行）：`_ADDED_COLUMNS`（如 `expense_record.rule_id`）与
+`_ADDED_INDEXES`（如唯一约束 `uq_expense_record_rule_date`）。

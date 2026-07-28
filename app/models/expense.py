@@ -105,15 +105,61 @@ class ExpenseTag(db.Model):
     __tablename__ = "expense_tag"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(30), nullable=False, unique=True)
+    # 标签组（菜系/火锅/甜品饮品…）：标签不挂在分类树上，一级分类能按金额推出来，
+    # 但「菜系 vs 火锅」这层是语义、数据里没有，只能手工指定。空 = 未分组，直接挂在一级分类下。
+    # 列名不用 group——那是 SQL 保留字。
+    group_name = db.Column(db.String(20))
 
     def __repr__(self):
         return f"<ExpenseTag {self.name}>"
+
+
+class ExpenseRule(db.Model):
+    """固定收支规则：每 interval_months 个月、在 1 号记一笔固定金额。
+
+    一条规则 = 一个金额 + 一段时间。房租涨价就给旧规则填上 end_month、另开一条新的，
+    不在单条规则里塞多段金额区间——查询和展示都简单，代价只是规则条数多几行。
+    """
+    __tablename__ = "expense_rule"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    kind = db.Column(db.String(4), nullable=False)
+    category_id = db.Column(db.ForeignKey("expense_category.id"), nullable=False)
+    tag_id = db.Column(db.ForeignKey("expense_tag.id"))
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    # 间隔月数：1=每月，3=每季度，12=每年。相位由 start_month 决定（起始 2 月 + 间隔 3
+    # → 2/5/8/11 月），所以不需要单独存「哪几个月」。
+    interval_months = db.Column(db.Integer, nullable=False, default=1)
+    # 起止都存当月 1 号——记录本来就固定落 1 号，两边对齐省掉来回换算。end_month 含当月，
+    # 留空 = 一直有效。
+    start_month = db.Column(db.Date, nullable=False)
+    end_month = db.Column(db.Date)
+    note = db.Column(db.Text)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    category = db.relationship("ExpenseCategory")
+    tag = db.relationship("ExpenseTag")
+
+    @property
+    def interval_label(self):
+        if self.interval_months == 1:
+            return "每月"
+        if self.interval_months == 12:
+            return "每年"
+        return f"每 {self.interval_months} 个月"
+
+    def __repr__(self):
+        return f"<ExpenseRule {self.name} {self.amount}/{self.interval_months}月>"
 
 
 class ExpenseRecord(db.Model):
     __tablename__ = "expense_record"
     __table_args__ = (
         db.Index("ix_expense_record_kind_date", "kind", "date"),
+        # 一条规则同一天只可能有一笔，自动补记的幂等由数据库兜底。SQLite 里 NULL != NULL，
+        # 所以手工/导入记录（rule_id 为空）互不影响。
+        db.UniqueConstraint("rule_id", "date", name="uq_expense_record_rule_date"),
     )
     id = db.Column(db.Integer, primary_key=True)
     kind = db.Column(db.String(4), nullable=False)
@@ -124,10 +170,13 @@ class ExpenseRecord(db.Model):
     note = db.Column(db.Text)
     source = db.Column(db.String(8), nullable=False, default="manual")
     fingerprint = db.Column(db.String(40), unique=True)
+    # 由哪条固定收支规则生成；手工与导入的记录留空。
+    rule_id = db.Column(db.ForeignKey("expense_rule.id"), index=True)
     created_at = db.Column(db.DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
     category = db.relationship("ExpenseCategory")
     tag = db.relationship("ExpenseTag")
+    rule = db.relationship("ExpenseRule")
 
     def __repr__(self):
         return f"<ExpenseRecord {self.kind} {self.date} {self.amount}>"
@@ -147,3 +196,44 @@ def seed_default_categories():
                 db.session.add(ExpenseCategory(name=name2, kind=kind, parent_id=top.id, sort_order=order2,
                                                icon=CATEGORY_ICONS.get(name2)))
     db.session.commit()
+
+
+# 标签组：走势页左栏把同一个一级分类下的标签再分一层，主要是「食品酒水」下几十个吃的标签
+# 需要（菜系 / 火锅 / 甜品饮品…）。顺序即展示顺序。
+TAG_GROUPS = ["中餐菜系", "火锅", "异国料理", "甜品饮品", "便餐小食"]
+
+# 首次填充用的猜测规则：先按名字精确命中，再按后缀兜底。只在「一个标签组都还没设过」时跑
+# 一次，之后完全以手工设置为准——猜错的（快餐/海鲜这类）在分类管理页改一下就固定了。
+_TAG_GROUP_GUESS = {
+    "日料": "异国料理", "西餐": "异国料理", "东南亚餐": "异国料理", "韩餐": "异国料理",
+    "快餐": "便餐小食", "小吃": "便餐小食", "轻食": "便餐小食", "主食": "便餐小食",
+    "烧烤": "便餐小食", "食堂": "便餐小食", "海鲜": "中餐菜系",
+    "蛋糕": "甜品饮品", "咖啡": "甜品饮品", "饮品": "甜品饮品", "酒水": "甜品饮品",
+    "冰激凌": "甜品饮品", "甜品": "甜品饮品",
+}
+
+
+def guess_tag_group(name):
+    """按标签名猜它属于哪个标签组；猜不出返回 None（留空 = 未分组）。"""
+    if name in _TAG_GROUP_GUESS:
+        return _TAG_GROUP_GUESS[name]
+    if name.endswith("火锅"):
+        return "火锅"
+    if name.endswith("菜"):
+        return "中餐菜系"
+    return None
+
+
+def seed_tag_groups():
+    """所有标签都还没设过分组时，按 guess_tag_group 预填一遍；已有任一分组则不动。
+    与 seed_default_categories 同一套路：只兜首次，不覆盖手工结果。"""
+    if ExpenseTag.query.filter(ExpenseTag.group_name.isnot(None)).first():
+        return
+    changed = False
+    for tag in ExpenseTag.query.all():
+        group = guess_tag_group(tag.name)
+        if group:
+            tag.group_name = group
+            changed = True
+    if changed:
+        db.session.commit()

@@ -58,19 +58,31 @@
 {% endfor %}
 
 <h3 class="city-group">标签</h3>
+<p class="muted tag-group-hint">「分组」只影响走势页左栏的归拢展示，不影响流水与统计口径。</p>
+{% for group_name, group_tags in tag_sections %}
+<h4 class="tag-subgroup-head">{{ group_name or "未分组" }}</h4>
 <div class="city-group-grid">
-{% for t in tags %}
+{% for t in group_tags %}
 <div class="card settings-row city-row">
   <span class="exp-tag">#{{ t.name }}</span>
+  <form method="post" action="{{ url_for('expenses.edit_tag', tag_id=t.id) }}" class="tag-group-form">
+    <select name="group_name" onchange="this.form.submit()">
+      <option value="">未分组</option>
+      {% for g in tag_groups %}
+      <option value="{{ g }}" {% if t.group_name == g %}selected{% endif %}>{{ g }}</option>
+      {% endfor %}
+    </select>
+  </form>
   <form method="post" action="{{ url_for('expenses.delete_tag', tag_id=t.id) }}"
         onsubmit="return confirm('确定删除标签 {{ t.name }}？');">
     <button class="btn btn-danger btn-sm" type="submit">删除</button>
   </form>
 </div>
+{% endfor %}
+</div>
 {% else %}
 <p class="muted">还没有标签，记录时或导入时会自动创建。</p>
 {% endfor %}
-</div>
 {% endblock %}
 
 {% block scripts %}

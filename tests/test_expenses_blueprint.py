@@ -340,3 +340,111 @@ def test_tag_delete_blocked_when_in_use(client, app):
     assert "无法删除" in resp.get_data(as_text=True)
     with app.app_context():
         assert db.session.get(ExpenseTag, tag_id) is not None
+
+
+# --- 固定收支规则 ---
+
+def _rule_form(category_id, **over):
+    data = {"kind": "支出", "category_id": str(category_id), "amount": "3500",
+            "interval_months": "1", "start_month": "2025-01", "name": "房租"}
+    data.update(over)
+    return data
+
+
+def _seed_rent(app):
+    with app.app_context():
+        cat = ExpenseCategory(name="居家物业", kind="支出")
+        db.session.add(cat)
+        db.session.commit()
+        return cat.id
+
+
+def test_rules_page_loads(client):
+    assert client.get("/expenses/rules").status_code == 200
+
+
+def test_create_rule_backfills_records(client, app):
+    cat_id = _seed_rent(app)
+    resp = client.post("/expenses/rules",
+                       data=_rule_form(cat_id, start_month="2025-01", end_month="2025-04"),
+                       follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        from app.models.expense import ExpenseRule
+        rule = ExpenseRule.query.one()
+        assert rule.name == "房租"
+        records = ExpenseRecord.query.filter_by(rule_id=rule.id).all()
+        assert len(records) == 4
+        assert all(r.source == "auto" and r.date.day == 1 for r in records)
+
+
+def test_create_rule_rejects_end_before_start(client, app):
+    cat_id = _seed_rent(app)
+    client.post("/expenses/rules",
+                data=_rule_form(cat_id, start_month="2025-06", end_month="2025-01"),
+                follow_redirects=True)
+    with app.app_context():
+        from app.models.expense import ExpenseRule
+        assert ExpenseRule.query.count() == 0
+
+
+def test_toggle_rule_off_then_on(client, app):
+    cat_id = _seed_rent(app)
+    client.post("/expenses/rules", data=_rule_form(cat_id, end_month="2025-03"),
+                follow_redirects=True)
+    with app.app_context():
+        from app.models.expense import ExpenseRule
+        rule_id = ExpenseRule.query.one().id
+
+    client.post(f"/expenses/rules/{rule_id}/toggle", follow_redirects=True)
+    with app.app_context():
+        from app.models.expense import ExpenseRule
+        assert db.session.get(ExpenseRule, rule_id).active is False
+
+    client.post(f"/expenses/rules/{rule_id}/toggle", follow_redirects=True)
+    with app.app_context():
+        from app.models.expense import ExpenseRule
+        assert db.session.get(ExpenseRule, rule_id).active is True
+
+
+def test_delete_rule_keeps_records_as_manual(client, app):
+    cat_id = _seed_rent(app)
+    client.post("/expenses/rules", data=_rule_form(cat_id, end_month="2025-03"),
+                follow_redirects=True)
+    with app.app_context():
+        from app.models.expense import ExpenseRule
+        rule_id = ExpenseRule.query.one().id
+
+    client.post(f"/expenses/rules/{rule_id}/delete", follow_redirects=True)
+    with app.app_context():
+        from app.models.expense import ExpenseRule
+        assert ExpenseRule.query.count() == 0
+        rows = ExpenseRecord.query.all()
+        assert len(rows) == 3
+        assert all(r.rule_id is None and r.source == "manual" for r in rows)
+
+
+def test_delete_rule_with_purge_removes_records(client, app):
+    cat_id = _seed_rent(app)
+    client.post("/expenses/rules", data=_rule_form(cat_id, end_month="2025-03"),
+                follow_redirects=True)
+    with app.app_context():
+        from app.models.expense import ExpenseRule
+        rule_id = ExpenseRule.query.one().id
+
+    client.post(f"/expenses/rules/{rule_id}/delete", data={"purge": "1"}, follow_redirects=True)
+    with app.app_context():
+        from app.models.expense import ExpenseRule
+        assert ExpenseRule.query.count() == 0
+        assert ExpenseRecord.query.count() == 0
+
+
+def test_rule_preview_endpoint(client):
+    resp = client.get("/expenses/rules/preview",
+                      query_string={"amount": "5000", "interval_months": "3",
+                                    "start_month": "2025-01", "end_month": "2025-12"})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+    assert data["count"] == 4
+    assert data["total"] == 20000

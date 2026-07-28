@@ -6,8 +6,8 @@ from app.services.expense_stats import (monthly_stats, yearly_stats, overview_st
                                          trend_stats, trend_year_records)
 
 
-def _cat(kind, name, parent=None):
-    c = ExpenseCategory(kind=kind, name=name, parent_id=parent.id if parent else None)
+def _cat(kind, name, parent=None, icon=None):
+    c = ExpenseCategory(kind=kind, name=name, icon=icon, parent_id=parent.id if parent else None)
     db.session.add(c)
     db.session.commit()
     return c
@@ -397,6 +397,76 @@ def test_trend_stats_yearly_series_per_dimension(app):
 
         # 二级维度带 parent_key，供联动选择器把二级挂回一级
         assert lunch_dim["parent_key"] == food_dim["key"]
+
+
+def test_trend_stats_tag_grouped_by_dominant_top_category(app):
+    """标签维度带 group（花得最多的那个一级分类）+ group_icon，走势页左栏按它给标签分组。"""
+    with app.app_context():
+        food = _cat("支出", "食品酒水", icon="🍜")
+        shopping = _cat("支出", "买买买买", icon="🛍️")
+        sichuan = ExpenseTag(name="川菜")
+        clothes = ExpenseTag(name="衣服鞋包")
+        db.session.add_all([sichuan, clothes])
+        db.session.commit()
+
+        # 川菜：食品 300 / 购物 100 → 归到食品酒水（不是非此即彼，按金额多的那边）
+        _record("支出", dt.date(2025, 3, 1), food, "300.00", tag=sichuan)
+        _record("支出", dt.date(2025, 4, 1), shopping, "100.00", tag=sichuan)
+        _record("支出", dt.date(2025, 5, 1), shopping, "900.00", tag=clothes)
+
+        dims = {d["name"]: d for d in trend_stats()["dimensions"] if d["type"] == "tag"}
+        assert dims["川菜"]["group"] == "食品酒水"
+        assert dims["川菜"]["group_icon"] == "🍜"
+        assert dims["衣服鞋包"]["group"] == "买买买买"
+
+        # 标签整体排序：先按所属组的合计降序，再按标签自身金额降序
+        tags = [d["name"] for d in trend_stats()["dimensions"] if d["type"] == "tag"]
+        assert tags == ["衣服鞋包", "川菜"]  # 买买买买组 1000 > 食品酒水组 400
+
+
+def test_trend_stats_tag_subgroup_from_tag_group_name(app):
+    """标签组（菜系/火锅…）来自手工设的 group_name，作为一级分类下的第二层；
+    未设分组的标签 subgroup 为 None，直接挂在一级分类下并排在有分组的后面。"""
+    with app.app_context():
+        food = _cat("支出", "食品酒水", icon="🍜")
+        sichuan = ExpenseTag(name="川菜", group_name="中餐菜系")
+        hotpot = ExpenseTag(name="四川火锅", group_name="火锅")
+        canteen = ExpenseTag(name="食堂")  # 未分组
+        db.session.add_all([sichuan, hotpot, canteen])
+        db.session.commit()
+
+        _record("支出", dt.date(2025, 3, 1), food, "100.00", tag=sichuan)
+        _record("支出", dt.date(2025, 3, 2), food, "500.00", tag=hotpot)
+        _record("支出", dt.date(2025, 3, 3), food, "900.00", tag=canteen)
+
+        dims = {d["name"]: d for d in trend_stats()["dimensions"] if d["type"] == "tag"}
+        assert dims["川菜"]["group"] == "食品酒水"      # 一级分类仍按金额推
+        assert dims["川菜"]["subgroup"] == "中餐菜系"   # 标签组来自 group_name
+        assert dims["四川火锅"]["subgroup"] == "火锅"
+        assert dims["食堂"]["subgroup"] is None
+
+        # 组内排序：有分组的按组合计降序在前，未分组的（哪怕金额最大）排最后
+        tags = [d["name"] for d in trend_stats()["dimensions"] if d["type"] == "tag"]
+        assert tags == ["四川火锅", "川菜", "食堂"]
+
+
+def test_seed_tag_groups_fills_only_once(app):
+    """预填只兜首次：已有任一标签设过组就整体跳过，不覆盖手工结果。"""
+    from app.models.expense import seed_tag_groups
+    with app.app_context():
+        db.session.add_all([ExpenseTag(name="粤菜"), ExpenseTag(name="北京火锅"),
+                            ExpenseTag(name="咖啡"), ExpenseTag(name="山姆")])
+        db.session.commit()
+
+        seed_tag_groups()
+        got = {t.name: t.group_name for t in ExpenseTag.query.all()}
+        assert got == {"粤菜": "中餐菜系", "北京火锅": "火锅", "咖啡": "甜品饮品", "山姆": None}
+
+        # 手工改一个之后再跑，不应被覆盖回猜测值
+        ExpenseTag.query.filter_by(name="咖啡").one().group_name = "酒水"
+        db.session.commit()
+        seed_tag_groups()
+        assert ExpenseTag.query.filter_by(name="咖啡").one().group_name == "酒水"
 
 
 def test_trend_stats_empty(app):

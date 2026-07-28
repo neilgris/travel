@@ -4,6 +4,7 @@
     <span class="exp-icon">{{ r.category.display_icon or '' }}</span>
     <span class="tl-title">
       {{ r.category.name }}
+      {% if r.rule_id %}<span class="exp-auto" title="固定收支规则自动生成">🔁</span>{% endif %}
       {% if r.tag %}<span class="exp-tag">#{{ r.tag.name }}</span>{% endif %}
       {% if r.note %}<span class="muted">{{ r.note }}</span>{% endif %}
       {% if show_date %}<span class="exp-item-date">{{ r.date.isoformat() }}</span>{% endif %}
@@ -12,8 +13,7 @@
       {{ '+' if r.kind == '收入' else '−' }}￥{{ '{:,.2f}'.format(r.amount) }}
     </span>
   </a>
-  <form method="post" action="{{ url_for('expenses.delete', record_id=r.id) }}"
-        class="exp-del-form" onsubmit="return confirm('删除这条记录？')">
+  <form method="post" action="{{ url_for('expenses.delete', record_id=r.id) }}" class="exp-del-form">
     <button class="exp-del" type="submit" title="删除">✕</button>
   </form>
 </li>
