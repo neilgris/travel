@@ -34,16 +34,114 @@
     });
   }
 
+  // 返回 promise：记一笔保存后要等列表重刷完，才能判断新记录有没有落进当前筛选。
   function applyFilters() {
     var qs = buildQuery();
     var url = location.pathname + (qs ? '?' + qs : '');
-    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    return fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.text(); })
       .then(function (html) {
         results.innerHTML = html;
         wireGroups();
+        updateBulkCount();
         history.replaceState(null, '', url);
       });
+  }
+
+  // 批量操作栏：面板本体在 list.html 里、#exp-results 外面（默认隐藏，点头部按钮才展开），
+  // 不会被筛选刷新时的 innerHTML 替换掉，所以监听只用在首屏挂一次；"当前筛选 N 条"这行
+  // 文字每次筛选刷新后要从结果区里的隐藏计数器（#exp-total-count）同步过来。
+  // 目标范围永远是"当前筛选栏筛出来的所有记录"，不是勾选出来的一部分——提交时把筛选栏
+  // 当前值（跟 applyFilters 用的是同一份 buildQuery）连同 field/value 一起发给后端，
+  // 后端用同一套筛选逻辑圈定范围，保证跟页面上看到的结果完全一致。
+  var bulkBar = document.getElementById('exp-bulk-bar');
+  var bulkToggle = document.getElementById('exp-bulk-toggle');
+
+  function updateBulkCount() {
+    if (!bulkBar) return;
+    var carrier = results.querySelector('#exp-total-count');
+    var count = carrier ? carrier.dataset.count : '0';
+    bulkBar.querySelector('.exp-bulk-count').textContent = '当前筛选 ' + count + ' 条';
+  }
+
+  function updateBulkApplyState() {
+    if (!bulkBar) return;
+    var field = bulkBar.querySelector('.exp-bulk-field').value;
+    bulkBar.querySelectorAll('.exp-bulk-value').forEach(function (el) {
+      el.hidden = el.dataset.for !== field;
+    });
+    var applyBtn = bulkBar.querySelector('.exp-bulk-apply');
+    if (field === 'category') {
+      applyBtn.disabled = !bulkBar.querySelector('.exp-bulk-category').value;
+    } else if (field === 'tag') {
+      applyBtn.disabled = false; // 标签留空 = 清空标签，是合法操作
+    } else {
+      applyBtn.disabled = true;
+    }
+  }
+
+  function openBulkBar() {
+    bulkBar.hidden = false;
+    bulkToggle.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeBulkBar() {
+    bulkBar.hidden = true;
+    bulkToggle.setAttribute('aria-expanded', 'false');
+  }
+
+  function wireBulkBar() {
+    if (!bulkBar) return;
+    updateBulkCount();
+    updateBulkApplyState();
+    bulkBar.querySelector('.exp-bulk-field').addEventListener('change', updateBulkApplyState);
+    var catSel = bulkBar.querySelector('.exp-bulk-category');
+    if (catSel) catSel.addEventListener('change', updateBulkApplyState);
+
+    bulkBar.querySelector('.exp-bulk-apply').addEventListener('click', function () {
+      var field = bulkBar.querySelector('.exp-bulk-field').value;
+      var value, valueLabel;
+      if (field === 'category') {
+        var sel = bulkBar.querySelector('.exp-bulk-category');
+        value = sel.value;
+        valueLabel = sel.selectedOptions[0].textContent;
+      } else {
+        value = bulkBar.querySelector('.exp-bulk-tag').value.trim();
+        valueLabel = value || '（清空标签）';
+      }
+      var label = field === 'category' ? '分类' : '标签';
+      var countText = bulkBar.querySelector('.exp-bulk-count').textContent;
+      if (!confirm(countText + '，确定把它们的' + label + '都改成 ' + valueLabel + ' 吗？此操作不可撤销。')) return;
+
+      var params = new URLSearchParams(buildQuery());
+      params.set('field', field);
+      params.set('value', value);
+      var applyBtn = bulkBar.querySelector('.exp-bulk-apply');
+      applyBtn.disabled = true;
+      fetch(bulkBar.dataset.url, {
+        method: 'POST', body: params,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.ok) {
+            applyFilters();
+          } else {
+            alert(data.error || '操作失败');
+          }
+          applyBtn.disabled = false; // 无论成功失败都要解锁——期望是每次点击都再批量修改一遍当前筛选
+        })
+        .catch(function () {
+          alert('网络错误，请重试');
+          applyBtn.disabled = false;
+        });
+    });
+
+    if (bulkToggle) {
+      bulkToggle.addEventListener('click', function () {
+        if (bulkBar.hidden) openBulkBar(); else closeBulkBar();
+      });
+    }
   }
 
   // 筛选栏"收支"切换时，"分类"下拉里只留对应收支类型的分类可选——
@@ -66,6 +164,7 @@
   }
 
   wireGroups(); // 首屏（服务端整页渲染）的月份分组也要接上折叠/展开逻辑
+  wireBulkBar(); // 批量操作栏本体不会被筛选刷新替换，监听只需要在首屏挂一次
   filterCategoryMsel(); // 首屏按当前"收支"筛选值同步一次分类下拉的可选项
 
   // 点一行流水，原地下拉成编辑表单，保存/取消都不刷新页面。
@@ -200,6 +299,98 @@
         .catch(function () { alert('网络错误，请重试'); });
     }
   });
+
+  // 记一笔：列表页原地展开一行录入表单，异步保存后按当前筛选重刷列表。
+  // 「再记一笔」= 保存当前这条但表单原样留着，改几个字段就能接着记下一条。
+  var newCard = document.getElementById('exp-new-card');
+  var newForm = document.getElementById('exp-new-form');
+  var newToggle = document.getElementById('exp-new-toggle');
+
+  function findInResults(recordId) {
+    // 折叠着的月份还躺在 <template> 里没进 DOM，也要一起找——否则刚记的这条只是
+    // 落在了折叠分组里，却被误报成"不在当前筛选范围内"。
+    var sel = '[data-record-id="' + recordId + '"]';
+    if (results.querySelector(sel)) return true;
+    var tpls = results.querySelectorAll('template.tl-group-tpl');
+    for (var i = 0; i < tpls.length; i++) {
+      if (tpls[i].content.querySelector(sel)) return true;
+    }
+    return false;
+  }
+
+  function showNewFormMsg(text, isError) {
+    var el = newForm.querySelector('.exp-inline-error');
+    el.textContent = text;
+    el.classList.toggle('exp-inline-msg', !isError);
+    el.hidden = !text;
+  }
+
+  function openNewForm() {
+    newCard.hidden = false;
+    newToggle.setAttribute('aria-expanded', 'true');
+    renderInlineCat1(newForm);
+    newForm.querySelector('.exp-inline-amount').focus();
+  }
+
+  function closeNewForm() {
+    newCard.hidden = true;
+    newToggle.setAttribute('aria-expanded', 'false');
+    showNewFormMsg('', false);
+  }
+
+  function submitNewRecord(keepOpen) {
+    if (!newForm.reportValidity()) return; // 「再记一笔」是 type=button，不走浏览器自带校验
+    showNewFormMsg('', false);
+    var btns = newForm.querySelectorAll('button');
+    function setDisabled(v) { btns.forEach(function (b) { b.disabled = v; }); }
+    setDisabled(true);
+    fetch(newForm.dataset.createUrl, {
+      method: 'POST', body: new FormData(newForm),
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        setDisabled(false);
+        if (!data.ok) {
+          showNewFormMsg(data.error || '保存失败', true);
+          return;
+        }
+        applyFilters().then(function () {
+          if (!findInResults(data.id)) {
+            showNewFormMsg('已保存，但这条不在当前筛选范围内，列表里看不到。', false);
+          }
+        });
+        if (keepOpen) {
+          var amount = newForm.querySelector('.exp-inline-amount');
+          amount.focus();
+          amount.select();
+        } else {
+          closeNewForm();
+        }
+      })
+      .catch(function () {
+        setDisabled(false);
+        showNewFormMsg('网络错误，请重试', true);
+      });
+  }
+
+  if (newForm && newToggle) {
+    newToggle.addEventListener('click', function () {
+      if (newCard.hidden) openNewForm(); else closeNewForm();
+    });
+    newForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      submitNewRecord(false);
+    });
+    newForm.addEventListener('click', function (e) {
+      if (e.target.closest('[data-save-again]')) submitNewRecord(true);
+      else if (e.target.closest('[data-new-cancel]')) closeNewForm();
+    });
+    newForm.addEventListener('change', function (e) {
+      if (e.target.classList.contains('exp-inline-kind')) renderInlineCat1(newForm);
+      else if (e.target.classList.contains('exp-inline-cat1')) renderInlineCat2(newForm);
+    });
+  }
 
   function updateMselSummary(msel) {
     var toggle = msel.querySelector('.msel-toggle');

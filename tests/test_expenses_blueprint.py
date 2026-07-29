@@ -38,6 +38,43 @@ def test_create_record_via_form(client, app):
         assert r.source == "manual"
 
 
+def test_create_post_xhr_returns_json_ok(client, app):
+    _, lunch_id = _seed_categories(app)
+    resp = client.post("/expenses/new", data={
+        "kind": "支出", "date": "2025-06-01", "category_id": str(lunch_id),
+        "amount": "35.50", "tag_name": "快餐", "note": "异步记的",
+    }, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+    with app.app_context():
+        r = ExpenseRecord.query.one()
+        assert r.note == "异步记的"
+        assert r.source == "manual"
+
+
+def test_create_post_xhr_with_bad_category_returns_json_error(client, app):
+    _seed_categories(app)
+    resp = client.post("/expenses/new", data={
+        "kind": "支出", "date": "2025-06-01", "category_id": "999999",
+        "amount": "35.50", "tag_name": "", "note": "不应该保存",
+    }, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["ok"] is False
+    assert data["error"]
+    with app.app_context():
+        assert ExpenseRecord.query.count() == 0
+
+
+def test_list_page_has_inline_new_record_form(client, app):
+    """记一笔改成列表页原地展开，不再跳转到 /expenses/new 页面。"""
+    resp = client.get("/expenses/")
+    text = resp.get_data(as_text=True)
+    assert "exp-new-form" in text
+    assert "exp-new-toggle" in text
+
+
 def test_edit_record(client, app):
     _, lunch_id = _seed_categories(app)
     with app.app_context():
@@ -145,7 +182,7 @@ def test_list_filters_by_keyword(client, app):
     assert "星巴克" not in text
 
 
-def test_list_filters_by_empty_tag(client, app):
+def test_list_filters_by_tag_query(client, app):
     _, lunch_id = _seed_categories(app)
     with app.app_context():
         tag = ExpenseTag(name="聚餐")
@@ -158,7 +195,26 @@ def test_list_filters_by_empty_tag(client, app):
                          amount=Decimal("20.00"), note="有标签这条", tag_id=tag.id, source="manual"),
         ])
         db.session.commit()
-    resp = client.get("/expenses/?tag_id=0")
+    resp = client.get("/expenses/?tag_q=聚")
+    text = resp.get_data(as_text=True)
+    assert "有标签这条" in text
+    assert "无标签这条" not in text
+
+
+def test_list_filters_by_empty_tag_keyword(client, app):
+    _, lunch_id = _seed_categories(app)
+    with app.app_context():
+        tag = ExpenseTag(name="聚餐")
+        db.session.add(tag)
+        db.session.commit()
+        db.session.add_all([
+            ExpenseRecord(kind="支出", date=dt.date(2025, 6, 1), category_id=lunch_id,
+                         amount=Decimal("10.00"), note="无标签这条", source="manual"),
+            ExpenseRecord(kind="支出", date=dt.date(2025, 6, 2), category_id=lunch_id,
+                         amount=Decimal("20.00"), note="有标签这条", tag_id=tag.id, source="manual"),
+        ])
+        db.session.commit()
+    resp = client.get("/expenses/?tag_q=空")
     text = resp.get_data(as_text=True)
     assert "无标签这条" in text
     assert "有标签这条" not in text

@@ -9,6 +9,14 @@
   <button class="btn" type="submit" style="margin-top: 0.6rem">上传并导入</button>
 </form>
 
+<div class="card">
+  <h3>重刷指纹</h3>
+  <p class="muted">改过分类名/标签名之后，老记录的去重指纹会跟不上；重刷会按当前分类/标签重新计算所有记录（含手工记录）的指纹，不影响记录内容本身。</p>
+  <form method="post" action="{{ url_for('expenses.refresh_fingerprints') }}">
+    <button class="btn" type="submit">重刷所有指纹</button>
+  </form>
+</div>
+
 <div class="card" style="border-color: #e76f51">
   <h3 style="color: #e76f51">危险操作</h3>
   <p class="muted">清空后记录无法恢复，请谨慎操作。</p>

@@ -7,7 +7,6 @@ from itertools import groupby
 
 from flask import (Blueprint, render_template, request, redirect, url_for, flash, abort,
                    jsonify, current_app)
-from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
@@ -15,7 +14,9 @@ from app.blueprints._json import safe_json
 from app.models.expense import (ExpenseCategory, ExpenseTag, ExpenseRecord, ExpenseRule,
                                 EXPENSE_KINDS, TAG_GROUPS, seed_default_categories,
                                 seed_tag_groups, guess_icon)
-from app.services.expense_import import parse_rows, import_rows
+from app.services.expense_import import (parse_rows, import_rows, record_natural_key,
+                                          next_free_fingerprint, refresh_all_fingerprints,
+                                          compact_fingerprints_around)
 from app.services.expense_recurring import materialize, next_due, preview, run_if_stale
 from app.services.expense_stats import (monthly_stats, yearly_stats, overview_stats,
                                          trend_stats, trend_year_records)
@@ -100,21 +101,22 @@ def _recent_years(n=10):
     return [current - i for i in range(n)]
 
 
-@bp.route("/")
-def list():
-    kind = request.args.get("kind") or None
-    ym = request.args.get("ym") or None
+def _filtered_query(args):
+    """流水筛选条件的唯一实现：list() 渲染页面、bulk_edit() 圈定批量操作范围都走这条，
+    保证"当前筛选出来的所有记录"两处算出来是同一批。返回 (query, filters)。"""
+    kind = args.get("kind") or None
+    ym = args.get("ym") or None
     if ym:
         year = None
-    elif "year" in request.args:
-        year = request.args.get("year", type=int)  # 显式选了"全部"时 year= 是空串，取不到数字 -> None
-    elif not request.args:
+    elif "year" in args:
+        year = args.get("year", type=int)  # 显式选了"全部"时 year= 是空串，取不到数字 -> None
+    elif not args:
         year = dt.date.today().year  # 真正第一次进来（不带任何参数）：默认只看当年，流水量太大会拖慢首屏
     else:
         year = None  # 带了别的筛选参数（如只给 q/kind）但没给 year，不额外强加当年限制
-    category_ids = request.args.getlist("category_id", type=int)
-    tag_ids = request.args.getlist("tag_id", type=int)
-    q = (request.args.get("q") or "").strip()
+    category_ids = args.getlist("category_id", type=int)
+    tag_q = (args.get("tag_q") or "").strip()
+    q = (args.get("q") or "").strip()
 
     query = ExpenseRecord.query
     if kind:
@@ -136,17 +138,21 @@ def list():
         for top in tops:
             expanded.update(c.id for c in top.children)
         query = query.filter(ExpenseRecord.category_id.in_(expanded))
-    if tag_ids:
-        real_tag_ids = [t for t in tag_ids if t]
-        conditions = []
-        if 0 in tag_ids:
-            conditions.append(ExpenseRecord.tag_id.is_(None))
-        if real_tag_ids:
-            conditions.append(ExpenseRecord.tag_id.in_(real_tag_ids))
-        query = query.filter(or_(*conditions))
+    if tag_q == "空":
+        query = query.filter(ExpenseRecord.tag_id.is_(None))
+    elif tag_q:
+        query = query.join(ExpenseTag, ExpenseRecord.tag_id == ExpenseTag.id).filter(
+            ExpenseTag.name.ilike(f"%{tag_q}%"))
     if q:
         query = query.filter(ExpenseRecord.note.ilike(f"%{q}%"))
 
+    filters = {"kind": kind, "ym": ym, "year": year, "category_id": category_ids, "tag_q": tag_q, "q": q}
+    return query, filters
+
+
+@bp.route("/")
+def list():
+    query, filters = _filtered_query(request.args)
     records = query.order_by(ExpenseRecord.date.desc(), ExpenseRecord.created_at.desc()).all()
 
     # groups: [{ym, records, subtotal, days}]；days 供「筛了单月」时按日再分组用
@@ -170,12 +176,18 @@ def list():
 
     template = ("expenses/_list_results.html" if request.headers.get("X-Requested-With") == "XMLHttpRequest"
                 else "expenses/list.html")
-    return render_template(template, groups=groups,
+    return render_template(template, groups=groups, total_count=len(records),
                            kinds=EXPENSE_KINDS, categories=_category_tree(), years=_recent_years(),
                            tags=ExpenseTag.query.order_by(ExpenseTag.name).all(),
-                           categories_json=_category_tree_json(),
-                           filters={"kind": kind, "ym": ym, "year": year, "category_id": category_ids,
-                                    "tag_id": tag_ids, "q": q})
+                           categories_json=_category_tree_json(), today=dt.date.today(),
+                           filters=filters)
+
+
+def _record_fingerprint(record, category, tag):
+    """手工新增/编辑/批量改之后重算指纹。自然键怎么归一化由 services 那边的
+    record_natural_key 一家说了算——导入、重刷走的是同一个函数，口径只有一份。"""
+    return next_free_fingerprint(record_natural_key(record, category, tag),
+                                 exclude_id=record.id)
 
 
 def _apply_record_form(record):
@@ -199,25 +211,34 @@ def _apply_record_form(record):
             tag = ExpenseTag(name=tag_name)
             db.session.add(tag)
             db.session.flush()
+    date = _parse_date(request.form["date"])
+    note = request.form.get("note") or None
     record.kind = kind
-    record.date = _parse_date(request.form["date"])
+    record.date = date
     record.category_id = category.id
     record.tag_id = tag.id if tag else None
     record.amount = amount
-    record.note = request.form.get("note") or None
+    record.note = note
+    record.fingerprint = _record_fingerprint(record, category, tag)
     return None
 
 
 @bp.route("/new", methods=["GET", "POST"])
 def create():
+    is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if request.method == "POST":
         record = ExpenseRecord(source="manual")
         error = _apply_record_form(record)
         if not error:
             db.session.add(record)
             db.session.commit()
+            if is_xhr:
+                # 只回 id：列表随后整体按当前筛选重刷，前端拿 id 判断这条有没有落进筛选范围
+                return jsonify(ok=True, id=record.id)
             flash("已添加记录")
             return redirect(url_for("expenses.list"))
+        if is_xhr:
+            return jsonify(ok=False, error=error), 400
         flash(error)
     return render_template("expenses/form.html", record=None, kinds=EXPENSE_KINDS,
                            categories_json=_category_tree_json(), today=dt.date.today(),
@@ -253,9 +274,68 @@ def delete(record_id):
     is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     db.session.delete(record)
     db.session.commit()
+    # 删掉的如果是「同天同分类同金额同备注」多笔里的一条，会在指纹序号里留个空洞，
+    # 剩下那条得往前挪补上（详见 compact_fingerprints_around），不然去重会漏判。
+    compact_fingerprints_around(record)
     if is_xhr:
         return jsonify(ok=True)
     flash("已删除记录")
+    return redirect(url_for("expenses.list"))
+
+
+@bp.route("/bulk-edit", methods=["POST"])
+def bulk_edit():
+    """批量把「当前筛选出来的所有记录」的分类或标签改成同一个值。范围复用
+    _filtered_query，跟流水页正在显示的筛选结果完全一致——不是另外勾选的一批。"""
+    is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    field = request.form.get("field")
+    query, _ = _filtered_query(request.form)
+    records = query.all()
+
+    if field == "category":
+        category = db.session.get(ExpenseCategory, request.form.get("value", type=int) or 0)
+        if category is None:
+            error = "请选择有效的分类"
+            if is_xhr:
+                return jsonify(ok=False, error=error), 400
+            flash(error)
+            return redirect(url_for("expenses.list"))
+        updated = skipped = 0
+        for r in records:
+            if r.kind != category.kind:  # 分类的收支类型跟记录对不上，不能硬改
+                skipped += 1
+                continue
+            r.category_id = category.id
+            r.fingerprint = _record_fingerprint(r, category, r.tag)
+            updated += 1
+        db.session.commit()
+        msg = f"已批量修改分类：{updated} 条"
+        if skipped:
+            msg += f"，跳过 {skipped} 条（收支类型与目标分类不符）"
+    elif field == "tag":
+        tag_name = (request.form.get("value") or "").strip()
+        tag = None
+        if tag_name:
+            tag = ExpenseTag.query.filter_by(name=tag_name).first()
+            if tag is None:
+                tag = ExpenseTag(name=tag_name)
+                db.session.add(tag)
+                db.session.flush()
+        for r in records:
+            r.tag_id = tag.id if tag else None
+            r.fingerprint = _record_fingerprint(r, r.category, tag)
+        db.session.commit()
+        msg = f"已批量{'清空' if not tag else '修改'}标签：{len(records)} 条"
+    else:
+        error = "未知的批量操作字段"
+        if is_xhr:
+            return jsonify(ok=False, error=error), 400
+        flash(error)
+        return redirect(url_for("expenses.list"))
+
+    if is_xhr:
+        return jsonify(ok=True, message=msg)
+    flash(msg)
     return redirect(url_for("expenses.list"))
 
 
@@ -374,6 +454,16 @@ def _data_months():
     """有流水的年月集合，形如 {'2025-11', ...}。给月度页下拉用。"""
     rows = db.session.query(db.func.strftime("%Y-%m", ExpenseRecord.date)).distinct().all()
     return {r[0] for r in rows}
+
+
+@bp.route("/refresh-fingerprints", methods=["POST"])
+def refresh_fingerprints():
+    result = refresh_all_fingerprints()
+    if result["changed"]:
+        flash(f"指纹重刷完成：共核对 {result['total']} 条 · 更新 {result['changed']} 条")
+    else:
+        flash(f"指纹重刷完成：共核对 {result['total']} 条，全部已是最新，无需更新")
+    return redirect(url_for("expenses.import_file"))
 
 
 @bp.route("/clear", methods=["POST"])
