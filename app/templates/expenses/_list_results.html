@@ -1,5 +1,5 @@
 {% macro exp_item(r, show_date=True) %}
-<li class="tl-item exp-item">
+<li class="tl-item exp-item" data-record-id="{{ r.id }}">
   <a class="tl-main" href="{{ url_for('expenses.edit', record_id=r.id) }}">
     <span class="exp-icon">{{ r.category.display_icon or '' }}</span>
     <span class="tl-title">
@@ -31,6 +31,10 @@
 </div>
 {% endfor %}
 {% endmacro %}
+{# 批量操作栏本体在 list.html 里（挪到筛选栏上方、默认隐藏，点头部按钮才展开），
+   不跟这份筛选结果一起被 AJAX 换掉；这里只留一个隐藏的计数携带者，给 JS 在每次刷新结果
+   后读出最新的"当前筛选 N 条"同步过去。 #}
+<span id="exp-total-count" hidden data-count="{{ total_count }}"></span>
 {% if groups %}
 {% for g in groups %}
 <details class="tl-group" {% if loop.first %}open{% endif %}>
