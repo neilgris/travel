@@ -154,8 +154,8 @@ function expTrends(data) {
   const childrenOf = {};  // 一级 key → [二级维度]
   dims.filter(d => d.type === 'cat2').forEach(d => (childrenOf[d.parent_key] ||= []).push(d));
 
-  let curKey = data.default_key;
-  let mode = byKey[curKey].type === 'tag' ? 'tag' : 'cat';
+  let curKey = null;  // setMode() 会在首次渲染前选中列表最上一项
+  let mode = 'cat';  // 与模板里默认高亮的「分类」标签页保持一致
   let selYear = data.years[data.years.length - 1];  // 默认看最后一年
 
   // ---- 左侧维度列表 ----
@@ -222,6 +222,9 @@ function expTrends(data) {
   function setMode(next) {
     mode = next;
     document.querySelectorAll('.trend-mode-btn').forEach(b => b.classList.toggle('is-active', b.dataset.mode === mode));
+    // 每次切换标签页都默认选中列表里最靠上的第一项
+    const pool = mode === 'tag' ? tags : cat1s;
+    if (pool[0]) curKey = pool[0].key;
     renderSide();
   }
 
@@ -305,13 +308,8 @@ function expTrends(data) {
   // ---- 事件 ----
   document.querySelectorAll('.trend-mode-btn').forEach(btn => btn.addEventListener('click', () => {
     if (btn.dataset.mode === mode) return;
-    // 切过去默认选金额最高的一项。不能直接取列表第一个——标签是先按所属组排的，
-    // 头一个只是最大那组的头名，未必是全局最大的标签。
-    const pool = btn.dataset.mode === 'tag' ? tags : cat1s;
-    const top = pool.reduce((a, b) => (b.total > a.total ? b : a), pool[0]);
-    // 先定好选中项再重画列表——renderSide 要靠 curKey 把选中项标出来并滚到可见处
-    if (top) { curKey = top.key; setMode(btn.dataset.mode); renderAll(); }
-    else setMode(btn.dataset.mode);
+    setMode(btn.dataset.mode);
+    renderAll();
   }));
 
   sideList.addEventListener('click', e => {
